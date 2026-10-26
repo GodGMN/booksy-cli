@@ -219,7 +219,46 @@ func describeTarget(w store.Watch) string {
 	if t.Filter.Before != "" {
 		parts = append(parts, "before "+t.Filter.Before)
 	}
+	for _, w := range t.Filter.Windows {
+		parts = append(parts, windowLabel(w))
+	}
 	return strings.Join(parts, " · ")
+}
+
+func windowLabel(w booksy.Window) string {
+	label := strings.Join(append(dayRuns(w.Weekdays), w.Dates...), ",")
+	switch {
+	case w.Off:
+		return label + " off"
+	case w.From == "00:00" && w.Till == "24:00":
+		return label
+	}
+	till := w.Till
+	if till == "24:00" {
+		till = "close"
+	}
+	return label + " " + w.From + "-" + till
+}
+
+// dayRuns renders ISO weekdays compactly: [1 2 3 4 5 7] is Mon-Fri, Sun.
+func dayRuns(days []int) []string {
+	var out []string
+	for i := 0; i < len(days); {
+		j := i
+		for j+1 < len(days) && days[j+1] == days[j]+1 {
+			j++
+		}
+		switch {
+		case j-i >= 2:
+			out = append(out, weekdayNames[days[i]]+"-"+weekdayNames[days[j]])
+		case j > i:
+			out = append(out, weekdayNames[days[i]], weekdayNames[days[j]])
+		default:
+			out = append(out, weekdayNames[days[i]])
+		}
+		i = j + 1
+	}
+	return out
 }
 
 type watchView struct{ store.Watch }

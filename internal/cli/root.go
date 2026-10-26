@@ -139,7 +139,7 @@ Agent usage: booksy skills get booksy-usage`,
 	root.AddCommand(
 		a.authCmd(), a.profileCmd(),
 		a.searchCmd(), a.categoryCmd(), a.placeCmd(),
-		a.businessCmd(), a.slotsCmd(),
+		a.businessCmd(), a.slotsCmd(), a.earliestCmd(), a.treatmentCmd(),
 		a.bookCmd(), a.appointmentCmd(),
 		a.meCmd(), a.bookmarkCmd(),
 		a.watchCmd(), a.sinkCmd(),

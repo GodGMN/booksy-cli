@@ -17,6 +17,10 @@ Something a Business offers, such as "Corte de pelo". Grouped under the Business
 The bookable form of a Service: one duration and one price. Every booking and every slot query is for a Variant, never for a Service.
 _Avoid_: Option, package
 
+**Treatment**:
+An entry of Booksy's shared catalogue ("Recorte de la barba", 71) that every Service is filed under. Service names belong to each Business; the Treatment is how one kind of service is compared across Businesses.
+_Avoid_: Category (that is the Business taxonomy), service type
+
 **Staffer**:
 A person at the Business who performs Services. "Any staffer" is id -1 on the wire.
 _Avoid_: Employee, resource (Booksy's internal word, which also covers rooms and equipment)
@@ -27,6 +31,10 @@ Booksy's global taxonomy of Businesses (Barbería is 45). Distinct from a Busine
 **Slot**:
 One open start time for one Variant (and optionally one Staffer), in the Business's local time, written `2026-10-28T13:00`.
 _Avoid_: Time slot, opening, availability (that is the list of Slots)
+
+**Schedule**:
+When the user can go, as `--when` entries: days plus an optional time range, with date entries overriding weekday ones. Narrows Slots in `slots`, `book --first`, watches and `earliest`.
+_Avoid_: Availability (that is the business's open Slots)
 
 ### Booking
 

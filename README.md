@@ -55,6 +55,22 @@ Netscape `cookies.txt`, Cookie-Editor/EditThisCookie JSON, a `Cookie:` header an
 | none | `search`, `category`, `place`, `business *`, `slots`, `book --dry-run`, watches |
 | login | `book`, `appointment *`, `me *`, `bookmark *` |
 
+## your schedule, and the earliest slot anywhere
+
+`--when` describes when you can go, one entry per rule, and works with `slots`, `book --first`, `watch add slots` and `earliest`:
+
+```bash
+booksy slots 99832 --service 1477667 --days 40 \
+  --when "mon-fri 16:00-close" --when "sat" --when "2026-12-24 off"
+```
+
+Each business names its services itself ("Arreglo de barba", "Recorte de barba"), but Booksy files them all under one catalogue treatment. `earliest` uses that to compare businesses:
+
+```bash
+booksy earliest barba --near Xàtiva --when "mon-fri 16:00-close" --when sat --format pretty
+booksy treatment search barba     # see the treatments "barba" could mean
+```
+
 ## watch for cancellations
 
 ```bash
@@ -98,7 +114,9 @@ booksy watch check --format jsonl | jq -r '.data | "\(.business_id) \(.variant_i
 | `search [query] --near/--geo --category --sort` | find businesses |
 | `category list`, `place resolve TEXT` | category ids, what `--near` resolves to |
 | `business show / services / staff / hours / reviews / open` | inspect a business |
-| `slots BUSINESS --service ...` | open start times (`--days --between --weekdays --before --staff --first`) |
+| `slots BUSINESS --service ...` | open start times (`--when --days --between --weekdays --before --staff --first`) |
+| `earliest TREATMENT --near PLACE --when ...` | earliest open slots for one kind of service across nearby businesses |
+| `treatment search TEXT` | Booksy's shared catalogue: how one service is matched across businesses |
 | `book BUSINESS --service ... --at TIME \| --first` | book, with confirmation (`--dry-run`, `--yes`, `--note`) |
 | `appointment list / show / cancel / reschedule` | your appointments |
 | `me show / reviews`, `bookmark list / add / remove` | your account |

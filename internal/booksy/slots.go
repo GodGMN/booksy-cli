@@ -66,6 +66,8 @@ type SlotFilter struct {
 	Weekdays []int `json:"weekdays,omitempty"`
 	// Before keeps slots strictly before this local start (2026-10-30T18:00 or 2026-10-30).
 	Before string `json:"before,omitempty"`
+	// Windows is a per-day schedule (see ParseWindow). A slot must fit one.
+	Windows []Window `json:"windows,omitempty"`
 }
 
 func (f SlotFilter) Validate() error {
@@ -107,6 +109,9 @@ func (f SlotFilter) Apply(slots []Slot) []Slot {
 			if err != nil || !days[isoWeekday(int(d.Weekday()))] {
 				continue
 			}
+		}
+		if !matchWindows(f.Windows, s) {
+			continue
 		}
 		out = append(out, s)
 	}

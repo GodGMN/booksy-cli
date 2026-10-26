@@ -61,6 +61,11 @@ type Service struct {
 	Variants    []Variant `json:"variants"`
 	StafferIDs  []int     `json:"staffer_ids,omitempty"`
 	Bookable    bool      `json:"bookable"`
+	// Treatment is Booksy's shared catalogue entry for the service ("Recorte
+	// de la barba", 71). Service names are each business's own; the
+	// treatment is how one service is found at many businesses.
+	TreatmentID int    `json:"treatment_id,omitempty"`
+	Treatment   string `json:"treatment,omitempty"`
 }
 
 // Variant is what actually gets booked: a Service at one duration and price.
@@ -138,6 +143,10 @@ type rawService struct {
 	StafferID                     []int        `json:"staffer_id"`
 	Variants                      []rawVariant `json:"variants"`
 	IsAvailableForCustomerBooking *bool        `json:"is_available_for_customer_booking"`
+	TreatmentID                   int          `json:"treatment_id"`
+	Treatment                     *struct {
+		Name string `json:"name"`
+	} `json:"treatment"`
 }
 
 type rawServiceCategory struct {
@@ -167,12 +176,15 @@ type rawBusiness struct {
 	PrimaryCategory   int                  `json:"primary_category"`
 	Promoted          bool                 `json:"promoted"`
 	ServiceCategories []rawServiceCategory `json:"service_categories"`
-	Staff             []rawStaffer         `json:"staff"`
-	Website           string               `json:"website"`
-	FacebookLink      string               `json:"facebook_link"`
-	InstagramLink     string               `json:"instagram_link"`
-	BookingPolicy     json.RawMessage      `json:"booking_policy"`
-	OpenHours         []struct {
+	// TreatmentServiceCategories is filled by a search with treatment=ID:
+	// just the business's services under that treatment.
+	TreatmentServiceCategories []rawServiceCategory `json:"treatment_service_categories"`
+	Staff                      []rawStaffer         `json:"staff"`
+	Website                    string               `json:"website"`
+	FacebookLink               string               `json:"facebook_link"`
+	InstagramLink              string               `json:"instagram_link"`
+	BookingPolicy              json.RawMessage      `json:"booking_policy"`
+	OpenHours                  []struct {
 		DayOfWeek int    `json:"day_of_week"`
 		OpenFrom  string `json:"open_from"`
 		OpenTill  string `json:"open_till"`
@@ -263,6 +275,10 @@ func convertServices(cats []rawServiceCategory) []Service {
 				StafferIDs:  s.StafferID,
 				Bookable:    boolOr(s.IsAvailableForCustomerBooking, true),
 				Variants:    []Variant{},
+				TreatmentID: s.TreatmentID,
+			}
+			if s.Treatment != nil {
+				svc.Treatment = strings.TrimSpace(s.Treatment.Name)
 			}
 			for _, v := range s.Variants {
 				svc.Variants = append(svc.Variants, Variant{

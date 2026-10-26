@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -412,5 +413,64 @@ func TestBookRefusalReasons(t *testing.T) {
 	h.srv.CancellationFee = "11.00"
 	if got := reason("book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); got != "card_required" || h.srv.Scheduled != 0 {
 		t.Fatalf("%q scheduled=%d", got, h.srv.Scheduled)
+	}
+}
+
+func TestEarliestAcrossBusinesses(t *testing.T) {
+	h := newHarness(t)
+	// Find a Tuesday and the Saturday after it, a week or so ahead.
+	base := time.Now().AddDate(0, 0, 1)
+	for base.Weekday() != time.Tuesday {
+		base = base.AddDate(0, 0, 1)
+	}
+	tue, sat := base.Format(time.DateOnly), base.AddDate(0, 0, 4).Format(time.DateOnly)
+	h.srv.Slots[tue] = []string{"10:00", "17:30"}
+	h.srv.OtherSlots[tue] = []string{"16:00"}
+	h.srv.OtherSlots[sat] = []string{"09:00"}
+
+	r := h.run("", "earliest", "corte", "--when", "mon-fri 16:00-close", "--when", "sat", "--per-business", "2", "--days", "14")
+	if r.code != 0 || !strings.Contains(r.stderr, `treatment 49 "Corte caballero"`) {
+		t.Fatalf("%d %s", r.code, r.stderr)
+	}
+	res := decode[EarliestResult](t, r.stdout)
+	var got []string
+	for _, s := range res.Results {
+		got = append(got, fmt.Sprintf("%d %s", s.BusinessID, s.Start))
+	}
+	want := []string{"4000 " + tue + "T16:00", "3349 " + tue + "T17:30", "4000 " + sat + "T09:00"}
+	if strings.Join(got, ",") != strings.Join(want, ",") || res.Checked != 2 {
+		t.Fatalf("got %v (checked %d), want %v", got, res.Checked, want)
+	}
+	// The rows carry what book needs.
+	if res.Results[0].VariantID != fakebooksy.OtherVariantID || res.Results[0].Service != "Corte caballero" {
+		t.Fatalf("%+v", res.Results[0])
+	}
+	if r := h.run("", "earliest", "--treatment", "49", "--service", "x"); r.code != 2 {
+		t.Fatalf("--service is not for earliest: %d", r.code)
+	}
+	if r := h.run("", "earliest"); r.code != 2 {
+		t.Fatalf("no treatment: %d", r.code)
+	}
+}
+
+func TestSlotsWhenSchedule(t *testing.T) {
+	h := newHarness(t)
+	base := time.Now().AddDate(0, 0, 1)
+	for base.Weekday() != time.Wednesday {
+		base = base.AddDate(0, 0, 1)
+	}
+	wed, sun := base.Format(time.DateOnly), base.AddDate(0, 0, 4).Format(time.DateOnly)
+	h.srv.Slots[wed] = []string{"10:00", "16:30"}
+	h.srv.Slots[sun] = []string{"11:00"}
+	res := decode[SlotsResult](t, h.ok("slots", "3349", "--service", "273164", "--days", "14", "--when", "mon-fri 16:00-close", "--when", "sat"))
+	if len(res.Slots) != 1 || res.Slots[0].Start != wed+"T16:30" {
+		t.Fatalf("%+v", res.Slots)
+	}
+	if r := h.run("", "slots", "3349", "--service", "273164", "--when", "mon 18-16"); r.code != 2 {
+		t.Fatalf("bad --when: %d", r.code)
+	}
+	h.ok("watch", "add", "slots", "3349", "--service", "273164", "--when", "mon-fri 16:00-close", "--when", "sat", "--name", "evenings")
+	if out := h.ok("watch", "list", "--format", "pretty"); !strings.Contains(out, "Mon-Fri 16:00-close") || !strings.Contains(out, "Sat") {
+		t.Fatalf("%s", out)
 	}
 }

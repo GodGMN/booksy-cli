@@ -21,6 +21,9 @@ const (
 	AppointVer  = 1700000000001
 	DraftPrefix = "draft-"
 	DefaultKey  = "web-e3d812bf-d7a2-445d-ab38-55589ae6a121"
+
+	OtherBusinessID = 4000
+	OtherVariantID  = 400001
 )
 
 // Server records calls and serves canned data. Slots is mutable so tests can
@@ -29,6 +32,8 @@ type Server struct {
 	*httptest.Server
 	mu    sync.Mutex
 	Slots map[string][]string // date -> times
+	// OtherSlots is the second business's calendar in treatment searches.
+	OtherSlots map[string][]string
 	// Key is the web api key the fake accepts and serves from its fake
 	// booksy.com scripts. Change it to simulate Booksy rotating the key.
 	Key     string
@@ -47,6 +52,7 @@ type Server struct {
 func New() *Server {
 	s := &Server{
 		Slots:           map[string][]string{},
+		OtherSlots:      map[string][]string{},
 		drafts:          map[string]map[string]any{},
 		Key:             DefaultKey,
 		Prepayment:      "0.00",
@@ -161,7 +167,33 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && path == "/businesses/categories/":
 		write(w, 200, map[string]any{"categories": []map[string]any{{"id": 39, "name": "Peluquería"}, {"id": 45, "name": "Barbería"}}})
 	case r.Method == "GET" && path == "/businesses":
+		if r.URL.Query().Get("treatment") == "49" {
+			// Two businesses under one treatment, each with its own service name.
+			a, b := business(), business()
+			a["treatment_service_categories"] = []map[string]any{{"id": 1, "name": "Cortes", "services": []map[string]any{
+				{"id": 46629, "name": "Corte de pelo", "active": true, "treatment_id": 49, "variants": []map[string]any{{"id": VariantID, "duration": 25, "price": 17.0, "service_price": "17,00 €"}}}}}}
+			b["id"], b["name"], b["distance"] = OtherBusinessID, "Otra Barberia", 2000
+			b["treatment_service_categories"] = []map[string]any{{"id": 2, "name": "Hombre", "services": []map[string]any{
+				{"id": 777, "name": "Corte caballero", "active": true, "treatment_id": 49, "variants": []map[string]any{{"id": OtherVariantID, "duration": 30, "price": 12.0, "service_price": "12,00 €"}}}}}}
+			write(w, 200, map[string]any{"businesses": []any{a, b}, "businesses_count": 2})
+			return
+		}
 		write(w, 200, map[string]any{"businesses": []any{business()}, "businesses_count": 246})
+	case r.Method == "GET" && path == "/search/modern_query_hints/":
+		write(w, 200, map[string]any{"suggestions": []map[string]any{
+			{"object_type": "treatment", "label": "Corte caballero", "query_parameters": map[string]any{"id": 49}},
+			{"object_type": "business", "label": "Some shop", "query_parameters": map[string]any{"id": 5}},
+			{"object_type": "treatment", "label": "Corte fade", "query_parameters": map[string]any{"id": 398}}}})
+	case r.Method == "POST" && path == fmt.Sprintf("/me/businesses/%d/appointments/time_slots", OtherBusinessID):
+		var days []map[string]any
+		for _, d := range sortedKeys(s.OtherSlots) {
+			var ss []map[string]string
+			for _, t := range s.OtherSlots[d] {
+				ss = append(ss, map[string]string{"t": t, "p": ""})
+			}
+			days = append(days, map[string]any{"date": d, "slots": ss})
+		}
+		write(w, 200, map[string]any{"time_slots": days})
 	case r.Method == "GET" && path == fmt.Sprintf("/businesses/%d", BusinessID):
 		write(w, 200, map[string]any{"business": business()})
 	case r.Method == "GET" && strings.HasPrefix(path, "/businesses/") && !strings.Contains(path[len("/businesses/"):], "/"):

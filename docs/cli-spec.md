@@ -25,6 +25,8 @@ category    list
 place       resolve
 business    show | services | staff | hours | reviews | open
 slots       <business>
+earliest    [treatment text...]
+treatment   search
 book        <business>
 appointment list | show | cancel | reschedule
 me          show | reviews
@@ -59,7 +61,27 @@ A staffer id, a case-insensitive name or substring, or `any`. Default any.
 
 ### Slot filters (slots, book --first, watch add slots)
 
-`--from YYYY-MM-DD` (not for watches), `--days N` (slots 7, book 14, watch 14), `--between HH:MM-HH:MM` (start inclusive, end exclusive), `--weekdays mon,sat | 1-5 | lun,sab`, `--before DATE[THH:MM]`. Booksy caps the window at the Business's booking horizon (about a month).
+`--from YYYY-MM-DD` (not for watches), `--days N` (slots 7, book and watch and earliest 14), `--between HH:MM-HH:MM` (start inclusive, end exclusive), `--weekdays mon,sat | 1-5 | lun,sab`, `--before DATE[THH:MM]`, and `--when` (repeatable, below). All given filters must hold. The booking horizon is the Business's own (seen from one month to over two).
+
+`--when "DAYS [RANGE]"` builds a per-day schedule; a slot must fit one entry:
+
+- DAYS: `mon`..`sun` or `lun`..`dom` or `1`..`7`, lists (`mon,wed`), ranges (`mon-fri`, wrapping `sat-mon`), `daily`, `weekdays`, `weekend`, or dates (`2026-12-24`, `2026-12-24,2026-12-26`).
+- RANGE: `HH:MM-HH:MM` (start inclusive, end exclusive). `open` and `close`, or an empty side, mean the start and end of the day; Booksy only offers slots inside opening hours, so they are the business's own hours. Omitted means all day. `off` excludes the days.
+- Date entries replace the weekday entries for their date: `--when "mon-fri 16:00-close" --when "2026-12-24 10:00-12:00"` keeps only 10:00 to 12:00 on the 24th.
+
+Watches store the parsed schedule (`filter.windows`).
+
+### earliest
+
+`earliest [TEXT...] [--treatment ID] [--near|--geo|--anywhere] [slot filters] [--days N] [--businesses N] [--per-business N] [--limit N]`
+
+Service names belong to each Business, so matching uses Booksy's catalogue treatment. TEXT resolves through `search/modern_query_hints/` to the first treatment suggestion; the others are printed on stderr. The search is `GET /businesses?treatment=ID` (nearest first when there is a centre), which also returns each Business's services under that treatment. For each of the first `--businesses` (15) results, up to two matching services are queried with their first variant and any staffer, at most 4 businesses at a time. A Business that fails is skipped with a notice. Each Business contributes its earliest `--per-business` (1) slots after the filters, with duplicates of one minute removed. Rows are sorted by start, then distance, and cut to `--limit` (10).
+
+Result: `{treatment, from, to, businesses_checked, results: [{date, time, start, business_id, business, distance_m, address, service, variant_id, duration_min, price, url}]}`. `jsonl` prints the rows. Fees and prepayments are not checked here; `book --dry-run` shows them.
+
+### treatment
+
+`treatment search TEXT`: catalogue treatments matching TEXT, as `[{id, name}]`.
 
 ### book
 
@@ -157,6 +179,8 @@ All requests send `X-Api-Key: web-e3d812bf-d7a2-445d-ab38-55589ae6a121` (booksy.
 | business | `GET /businesses/{id}?no_thumbs=true` | no |
 | reviews | `GET /businesses/{id}/reviews?reviews_page&reviews_per_page` | no |
 | place | `GET /search/street_hints/resolve/?query=` | no |
+| treatments | `GET /search/modern_query_hints/?text=` (suggestions with `object_type: treatment`) | no |
+| by treatment | `GET /businesses?treatment=ID&...` (adds `treatment_service_categories`) | no |
 | slots | `POST /me/businesses/{id}/appointments/time_slots` `{subbookings:[{service_variant_id,staffer_id}],start_date,end_date}` | no |
 | draft | `POST /drafts/create` `{business_id,service_variant_id,staffer_id,meta}` | fingerprint |
 | | `POST /drafts/{id}/change_timeslot` `{slot:{d,t},version}` | fingerprint |

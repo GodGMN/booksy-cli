@@ -23,6 +23,7 @@ type slotFlags struct {
 	between  string
 	weekdays string
 	before   string
+	when     []string
 }
 
 func (s *slotFlags) bind(cmd *cobra.Command, days int) {
@@ -34,6 +35,7 @@ func (s *slotFlags) bind(cmd *cobra.Command, days int) {
 	f.StringVar(&s.between, "between", "", "only start times in HH:MM-HH:MM, e.g. 17:00-20:00")
 	f.StringVar(&s.weekdays, "weekdays", "", "only these days: mon,tue,... or 1-5 (1 is Monday)")
 	f.StringVar(&s.before, "before", "", "only slots starting before this date or date and time")
+	f.StringArrayVar(&s.when, "when", nil, `per-day schedule, repeatable: "mon-fri 16:00-close", "sat", "2026-12-24 10:00-12:00", "2026-12-31 off"`)
 }
 
 func (s slotFlags) filter() (booksy.SlotFilter, error) {
@@ -43,50 +45,26 @@ func (s slotFlags) filter() (booksy.SlotFilter, error) {
 		return f, err
 	}
 	f.Weekdays = days
+	for _, w := range s.when {
+		win, err := booksy.ParseWindow(w)
+		if err != nil {
+			return f, err
+		}
+		f.Windows = append(f.Windows, win)
+	}
 	return f, f.Validate()
 }
 
-var dayIndex = map[string]int{"mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
-	"lun": 1, "mar": 2, "mie": 3, "mié": 3, "jue": 4, "vie": 5, "sab": 6, "sáb": 6, "dom": 7}
-
-// parseWeekdays accepts "mon,wed", "1-5", "sat,sun" or a mix.
+// parseWeekdays reads --weekdays; empty means every day.
 func parseWeekdays(s string) ([]int, error) {
 	if strings.TrimSpace(s) == "" {
 		return nil, nil
 	}
-	var out []int
-	for _, part := range strings.Split(strings.ToLower(s), ",") {
-		part = strings.TrimSpace(part)
-		if lo, hi, ok := strings.Cut(part, "-"); ok {
-			a, b := dayNumber(lo), dayNumber(hi)
-			if a == 0 || b == 0 || a > b {
-				return nil, output.Usagef("--weekdays: bad range %q", part)
-			}
-			for d := a; d <= b; d++ {
-				out = append(out, d)
-			}
-			continue
-		}
-		d := dayNumber(part)
-		if d == 0 {
-			return nil, output.Usagef("--weekdays: unknown day %q (use mon..sun or 1..7)", part)
-		}
-		out = append(out, d)
+	days, err := booksy.ParseWeekdays(s)
+	if err != nil {
+		return nil, output.Usagef("--weekdays: %v", err)
 	}
-	return out, nil
-}
-
-func dayNumber(s string) int {
-	s = strings.TrimSpace(s)
-	if n, err := strconv.Atoi(s); err == nil && n >= 1 && n <= 7 {
-		return n
-	}
-	if r := []rune(s); len(r) >= 3 {
-		if d, ok := dayIndex[string(r[:3])]; ok {
-			return d
-		}
-	}
-	return dayIndex[s]
+	return days, nil
 }
 
 func (s slotFlags) window(now time.Time) (time.Time, time.Time, error) {

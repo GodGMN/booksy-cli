@@ -22,8 +22,11 @@ func (c *Client) Categories(ctx context.Context) ([]Category, error) {
 // SearchParams is a business search. Exactly one of Geo or LocationID should
 // be set; with neither, Booksy searches the whole country.
 type SearchParams struct {
-	Query      string  `json:"query,omitempty"`
-	Category   int     `json:"category,omitempty"`
+	Query    string `json:"query,omitempty"`
+	Category int    `json:"category,omitempty"`
+	// Treatment keeps businesses offering that catalogue treatment, and
+	// fills each result's Services with just the matching ones.
+	Treatment  int     `json:"treatment,omitempty"`
 	Lat        float64 `json:"lat,omitempty"`
 	Lng        float64 `json:"lng,omitempty"`
 	LocationID int     `json:"location_id,omitempty"`
@@ -58,6 +61,9 @@ func (c *Client) Search(ctx context.Context, p SearchParams) (SearchPage, error)
 	if p.Category != 0 {
 		q.Set("category", strconv.Itoa(p.Category))
 	}
+	if p.Treatment != 0 {
+		q.Set("treatment", strconv.Itoa(p.Treatment))
+	}
 	if p.Lat != 0 || p.Lng != 0 {
 		q.Set("location_geo", fmt.Sprintf("%.6f,%.6f", p.Lat, p.Lng))
 	} else if p.LocationID != 0 {
@@ -76,7 +82,11 @@ func (c *Client) Search(ctx context.Context, p SearchParams) (SearchPage, error)
 	page := SearchPage{Total: resp.BusinessesCount, Page: p.Page, PerPage: p.PerPage, Businesses: []BusinessSummary{}}
 	for _, b := range resp.Businesses {
 		s := c.summary(b)
-		s.Services = convertServices(b.ServiceCategories)
+		if p.Treatment != 0 {
+			s.Services = convertServices(b.TreatmentServiceCategories)
+		} else {
+			s.Services = convertServices(b.ServiceCategories)
+		}
 		page.Businesses = append(page.Businesses, s)
 	}
 	return page, nil
@@ -173,6 +183,36 @@ func (c *Client) reviews(ctx context.Context, path string, q url.Values, page in
 	out := ReviewPage{Total: resp.ReviewsCount, Rating: round2(resp.ReviewsRank), Page: page, Reviews: []Review{}}
 	for _, r := range resp.Reviews {
 		out.Reviews = append(out.Reviews, convertReview(r))
+	}
+	return out, nil
+}
+
+// Treatment is an entry of Booksy's shared service catalogue.
+type Treatment struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// Treatments finds catalogue treatments matching free text, using the same
+// hints as the booksy.com search box ("barba" -> Recorte de la barba, ...).
+func (c *Client) Treatments(ctx context.Context, text string) ([]Treatment, error) {
+	var resp struct {
+		Suggestions []struct {
+			ObjectType      string `json:"object_type"`
+			Label           string `json:"label"`
+			QueryParameters struct {
+				ID int `json:"id"`
+			} `json:"query_parameters"`
+		} `json:"suggestions"`
+	}
+	if err := c.call(ctx, "GET", "/search/modern_query_hints/", url.Values{"text": {text}}, nil, &resp); err != nil {
+		return nil, err
+	}
+	out := []Treatment{}
+	for _, s := range resp.Suggestions {
+		if s.ObjectType == "treatment" && s.QueryParameters.ID != 0 {
+			out = append(out, Treatment{ID: s.QueryParameters.ID, Name: strings.TrimSpace(s.Label)})
+		}
 	}
 	return out, nil
 }

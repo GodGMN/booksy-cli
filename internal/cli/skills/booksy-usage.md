@@ -26,6 +26,34 @@ booksy business staff 3349                     # staffer ids for --staff
 `--service` takes a variant id, a service id with one variant, or part of the
 service name. An ambiguous name fails with exit 2 and lists the variant ids.
 
+## Schedules: --when
+
+Express the user's availability as `--when` entries instead of running several
+queries and merging them. Works on `slots`, `book --first`, `watch add slots`,
+`earliest`.
+
+```sh
+--when "mon-fri 16:00-close" --when "sat"     # weekday evenings, Saturday all day
+--when "weekdays 18:00-" --when "2026-12-24 10:00-12:00" --when "2026-12-31 off"
+```
+
+Days: mon..sun (or lun..dom, 1..7), lists, ranges, daily, weekdays, weekend,
+or YYYY-MM-DD dates. A date entry replaces the weekday entries for that day.
+open/close (or an empty side) mean the business's opening and closing time.
+
+## Earliest slot across businesses
+
+```sh
+booksy treatment search barba                    # catalogue ids
+booksy earliest --treatment 71 --near "Xàtiva" --when "mon-fri 16:00-close" --when sat
+```
+
+Service names are each business's own, so `earliest` matches by catalogue
+treatment. With text instead of `--treatment`, stderr says which treatment it
+picked; check it is what the user meant. Each row has `business_id`,
+`variant_id` and `start`: pass them to `booksy book ... --dry-run` before
+booking, since fees only show there.
+
 ## Availability (no login)
 
 ```sh
