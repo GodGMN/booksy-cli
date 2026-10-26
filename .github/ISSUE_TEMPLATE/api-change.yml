@@ -1,0 +1,28 @@
+name: Booksy API change
+description: booksy exited 7 (api_changed). The error message links here with the fields filled in.
+title: "[api change] "
+labels: [api-change]
+body:
+  - type: input
+    id: version
+    attributes: {label: booksy version}
+  - type: input
+    id: os
+    attributes: {label: OS/arch}
+  - type: input
+    id: command
+    attributes: {label: Command (no arguments)}
+  - type: input
+    id: endpoint
+    attributes: {label: Endpoint}
+  - type: input
+    id: status
+    attributes: {label: HTTP status}
+  - type: textarea
+    id: body_excerpt
+    attributes:
+      label: Response excerpt
+      description: Already redacted by the CLI. Check that it has no personal data before submitting.
+  - type: textarea
+    id: notes
+    attributes: {label: Anything else}

@@ -1,0 +1,7 @@
+/bin/
+/dist/
+*.test
+*.out
+# never commit a cookie export
+*cookies*.json
+cookies.txt
