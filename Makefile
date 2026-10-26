@@ -1,4 +1,4 @@
-.PHONY: build test check fmt vet lint install
+.PHONY: build test check fmt vet lint install snapshot
 
 build:
 	go build -o bin/booksy ./cmd/booksy
@@ -20,3 +20,7 @@ check: vet lint test
 
 install:
 	go install -ldflags "-X main.version=$$(git describe --tags --always --dirty)" ./cmd/booksy
+
+# snapshot builds every release archive locally into dist/, without publishing.
+snapshot:
+	go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean

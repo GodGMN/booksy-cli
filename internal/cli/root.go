@@ -77,6 +77,9 @@ func Execute(version string, args []string, stdin io.Reader, stdout, stderr io.W
 		app.store.Close()
 	}
 	if err == nil {
+		if cmd != nil {
+			app.updateNotice(ctx, cmd)
+		}
 		return 0
 	}
 	if errors.Is(err, context.Canceled) || ctx.Err() != nil {
@@ -143,7 +146,7 @@ Agent usage: booksy skills get booksy-usage`,
 		a.bookCmd(), a.appointmentCmd(),
 		a.meCmd(), a.bookmarkCmd(),
 		a.watchCmd(), a.sinkCmd(),
-		a.configCmd(), a.doctorCmd(), a.skillsCmd(),
+		a.configCmd(), a.doctorCmd(), a.skillsCmd(), a.updateCmd(),
 	)
 	return root
 }

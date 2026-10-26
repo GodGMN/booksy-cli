@@ -1,0 +1,47 @@
+version: 2
+
+project_name: booksy
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: booksy
+    # cmd/booksy so `go install .../cmd/booksy` and the archives agree on the name.
+    main: ./cmd/booksy
+    binary: booksy
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version=v{{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    # Must match updater.ArchiveName and scripts/install.sh.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs"
+      - "^ci"
+
+release:
+  github:
+    owner: GodGMN
+    name: booksy-cli
+  prerelease: auto

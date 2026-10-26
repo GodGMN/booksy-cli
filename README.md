@@ -14,13 +14,36 @@ The barber you want is booked out for three weeks, but people cancel all the tim
 
 ## install
 
+Linux and macOS:
+
 ```bash
-go install github.com/GodGMN/booksy-cli/cmd/booksy@latest
-booksy --version
+curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh | sh
 booksy doctor
 ```
 
-or from a clone: `make install`.
+It downloads the release for your OS and CPU, checks it against `checksums.txt`, and puts `booksy` in `~/.local/bin` (`BOOKSY_INSTALL_DIR` changes that, `BOOKSY_VERSION=v0.2.0` pins a version). While the repository is private it downloads through a logged-in `gh` CLI, so run `gh auth login` first, or use `gh api` to fetch the script.
+
+Windows: download the zip for your CPU from the releases page and put `booksy.exe` on your `PATH`.
+
+With Go: `go install github.com/GodGMN/booksy-cli/cmd/booksy@latest`, or `make install` from a clone.
+
+## update
+
+```bash
+booksy update --check   # is there a newer release?
+booksy update           # verify and replace this binary (asks first; --yes skips)
+```
+
+Interactive commands print a one-line notice, at most once a day, when a newer release exists (`BOOKSY_NO_UPDATE_CHECK=1` turns it off). A private repository needs `GITHUB_TOKEN` or a logged-in `gh`.
+
+## releasing
+
+Push a version tag and GitHub Actions builds and publishes everything with goreleaser: Linux, macOS and Windows on amd64 and arm64, plus `checksums.txt`.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+make snapshot   # the same build locally into dist/, nothing published
+```
 
 ## quickstart
 

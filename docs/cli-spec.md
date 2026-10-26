@@ -36,8 +36,15 @@ sink        list | test
 config      path | list | get | set | unset
 doctor
 skills      list | get
+update
 completion  <shell>
 ```
+
+### update
+
+`update [--check] [--yes]`: reads `GET /repos/GodGMN/booksy-cli/releases/latest`, compares stable `vX.Y.Z` versions, downloads `booksy_{version}_{os}_{arch}.tar.gz` (`.zip` on Windows) and `checksums.txt` as release assets, verifies the SHA-256, extracts only the `booksy` entry, and renames it over the running binary. It asks first (`--yes`, or exit 2 without a terminal). Development builds and `go install` binaries are not replaced; the latter get the `go install` command. A token from `BOOKSY_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token` is sent to api.github.com only (dropped on the redirect to asset storage), which makes a private repository work.
+
+After a successful interactive command (not `update`, `watch`, `auth`, `completion`, `help`), at most once a day (stamp `$XDG_STATE_HOME/booksy-cli/update-check`), a 2-second check prints `booksy: vX is available` on stderr. Failures are silent. `BOOKSY_NO_UPDATE_CHECK=1` disables it.
 
 ### Global flags
 
