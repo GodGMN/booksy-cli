@@ -98,8 +98,17 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 			return err
 		}
 		res.Payment = &pay
-		if pay.NeedsPrepayment() && !dryRun {
-			return booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
+		if !dryRun {
+			if pay.NeedsPrepayment() {
+				return booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
+			}
+			// No-show protection: the service is still paid in person, but
+			// Booksy holds the booking as awaiting payment until a card is
+			// registered as a guarantee, and cancels it if none comes. Card
+			// entry is Stripe's form on booksy.com, so stop before booking.
+			if pay.HasCancellationFee() {
+				return booksy.Usage("%s uses no-show protection: you pay %s at the business, but booksy needs a card on file to guarantee a %s fee for late cancellations, and only booksy.com or the app can take it. Book this one there; a booking made here would stay unconfirmed and be cancelled", d.Business, pay.ToPayLater, pay.CancellationFee)
+			}
 		}
 	}
 	if dryRun {

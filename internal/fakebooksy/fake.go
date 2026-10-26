@@ -35,6 +35,7 @@ type Server struct {
 	WebHits int
 	// Prepayment is what payments/calc reports; "0.00" unless a test sets it.
 	Prepayment       string
+	CancellationFee  string
 	LastBookedStatus string
 	Calls            []string
 	Scheduled        int
@@ -45,10 +46,11 @@ type Server struct {
 
 func New() *Server {
 	s := &Server{
-		Slots:      map[string][]string{},
-		drafts:     map[string]map[string]any{},
-		Key:        DefaultKey,
-		Prepayment: "0.00",
+		Slots:           map[string][]string{},
+		drafts:          map[string]map[string]any{},
+		Key:             DefaultKey,
+		Prepayment:      "0.00",
+		CancellationFee: "0.00",
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
@@ -227,10 +229,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 				apiErr(w, 403, "required", "Se requiere un token de autorización para este endpoint.", "auth_header_token")
 				return
 			}
-			// Like the real API: skipping payments/calc leaves it awaiting payment.
-			status := "O"
-			if d["priced"] == true {
-				status = "A"
+			// Like the real API: a fee with no card on file leaves it awaiting payment.
+			status := "A"
+			if s.CancellationFee != "0.00" || s.Prepayment != "0.00" {
+				status = "O"
 			}
 			d["status"], d["core_id"] = status, AppointUID
 			s.Scheduled++
@@ -291,7 +293,7 @@ func (s *Server) serveMe(w http.ResponseWriter, r *http.Request, path string, bo
 		}
 		d["priced"] = true
 		write(w, 200, map[string]any{"appointment": map[string]any{"status": "A"}, "appointment_payment": map[string]any{
-			"prepayment": s.Prepayment, "prepayment_total": s.Prepayment, "cancellation_fee": "11.00", "cancellation_fee_total": "11.00", "to_pay_later": "17.00"}})
+			"prepayment": s.Prepayment, "prepayment_total": s.Prepayment, "cancellation_fee": s.CancellationFee, "cancellation_fee_total": s.CancellationFee, "to_pay_later": "17.00"}})
 	case r.Method == "GET" && path == "/me/bookmarks/":
 		write(w, 200, map[string]any{"businesses": []any{business()}})
 	case (r.Method == "PUT" || r.Method == "DELETE") && path == fmt.Sprintf("/me/bookmarks/%d/", BusinessID):

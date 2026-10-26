@@ -238,9 +238,10 @@ func positive(s string) bool {
 	return err == nil && f > 0
 }
 
-// PaymentCalc prices the draft. booksy.com runs it on the review screen,
-// before schedule; a draft scheduled without it was left awaiting payment
-// (status O) even with nothing to prepay, so Book always calls it first.
+// PaymentCalc prices the draft, as booksy.com's review screen does before
+// schedule. A prepayment or a cancellation fee above zero means the booking
+// needs a card (to pay, or to guarantee the fee); without one Booksy keeps
+// it in status O and later cancels it.
 func (c *Client) PaymentCalc(ctx context.Context, d Draft) (Payment, error) {
 	if err := c.requireToken("POST /me/payments/calc/"); err != nil {
 		return Payment{}, err
