@@ -130,7 +130,7 @@ The HTTP client refuses redirects that change scheme or host, because Go would r
 
 ## 5. Output
 
-JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, http_status, endpoint, suggested_commands, issue_url}`. Endpoints in errors have ids replaced by `{id}`. Issue links never include response bodies.
+JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, reason, http_status, endpoint, suggested_commands, issue_url}`. `reason` is a stable cause when there is one: `card_required` (book refused for a prepayment or cancellation fee), `slot_unavailable` (time not open). Endpoints in errors have ids replaced by `{id}`. Issue links never include response bodies.
 
 ## 6. Exit codes
 

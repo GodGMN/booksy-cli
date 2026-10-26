@@ -43,8 +43,23 @@ booksy book 3349 --service 273164 --at 2026-10-30T18:00 --yes --no-input
 booksy book 3349 --service 273164 --first --between 17:00-20:00 --dry-run
 ```
 
-Result: `{booked, dry_run, draft, summary, appointment}`. A time that is not
-open fails with exit 2.
+Result: `{booked, dry_run, draft, summary, payment, appointment}`.
+`payment` is `{prepayment, cancellation_fee, to_pay_later}` (needs a login).
+
+Failures to handle, both exit 2 with `--error-format json`:
+
+- `reason: "slot_unavailable"`: the time is not open. Re-run `booksy slots`
+  and offer the user another time; do not guess times.
+- `reason: "card_required"`: the business asks for a prepayment, or uses
+  no-show protection (a fee for late cancellation or no-show). Either way
+  Booksy needs a card, which only booksy.com or the app can take. Nothing was
+  booked. Do not retry with other flags: tell the user to book that one on
+  booksy.com or in the app, quoting the amounts from the dry run.
+
+Run `--dry-run` first: a non-zero `payment.prepayment` or
+`payment.cancellation_fee` predicts `card_required` before you ask the user
+to confirm. Businesses can turn no-show protection on at any time, so a
+business that booked fine before can start returning it.
 
 ## Appointments
 

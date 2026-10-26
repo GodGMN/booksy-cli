@@ -157,6 +157,7 @@ type Envelope struct {
 	Category          string   `json:"category"`
 	Retryable         bool     `json:"retryable"`
 	Message           string   `json:"message"`
+	Reason            string   `json:"reason,omitempty"`
 	HTTPStatus        int      `json:"http_status,omitempty"`
 	Endpoint          string   `json:"endpoint,omitempty"`
 	SuggestedCommands []string `json:"suggested_commands,omitempty"`
@@ -174,6 +175,7 @@ func Classify(err error, version, command string) Envelope {
 		env.Retryable = we.Retryable
 		env.HTTPStatus = we.Status
 		env.Endpoint = we.Endpoint
+		env.Reason = we.Reason
 		switch we.Kind {
 		case booksy.KindAuth:
 			env.SuggestedCommands = []string{"booksy auth status", "booksy auth login"}

@@ -65,6 +65,9 @@ type Error struct {
 	Retryable bool
 	// KeyRejected marks a refusal of the public web API key (not the login).
 	KeyRejected bool
+	// Reason is a stable machine-readable cause for agents, when there is one
+	// (card_required, slot_unavailable). Exit codes stay coarse; this does not.
+	Reason string
 }
 
 func (e *Error) Error() string { return e.Msg }

@@ -396,3 +396,21 @@ func TestSinkListHidesSecrets(t *testing.T) {
 		t.Fatalf("config.toml mode %v", info.Mode())
 	}
 }
+
+func TestBookRefusalReasons(t *testing.T) {
+	h := newHarness(t)
+	day := today(1)
+	h.srv.Slots[day] = []string{"18:00"}
+	h.login()
+	reason := func(args ...string) string {
+		r := h.run("", append(args, "--error-format", "json")...)
+		return decode[map[string]any](t, r.stderr)["reason"].(string)
+	}
+	if got := reason("book", "3349", "--service", "273164", "--at", day+"T09:00", "--yes"); got != "slot_unavailable" {
+		t.Fatalf("%q", got)
+	}
+	h.srv.CancellationFee = "11.00"
+	if got := reason("book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); got != "card_required" || h.srv.Scheduled != 0 {
+		t.Fatalf("%q scheduled=%d", got, h.srv.Scheduled)
+	}
+}

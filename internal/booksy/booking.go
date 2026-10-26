@@ -154,6 +154,7 @@ func (c *Client) ChangeTimeslot(ctx context.Context, d Draft, date, clock string
 	})
 	if e, ok := err.(*Error); ok && e.Kind == KindUsage {
 		e.Msg = fmt.Sprintf("%sT%s is not available for this service (see `booksy slots`)", date, clock)
+		e.Reason = "slot_unavailable"
 	}
 	return nd, err
 }
