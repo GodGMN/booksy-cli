@@ -1,5 +1,5 @@
 // Package config owns everything the CLI persists outside the state database:
-// XDG paths, config.toml (hand-edited, world-readable) and credentials.toml
+// XDG paths, config.toml (hand-edited, 0600 because sink URLs are secrets) and credentials.toml
 // (access tokens, 0600). The two files are kept apart so that sharing or
 // committing a config never leaks a token.
 package config
@@ -86,7 +86,7 @@ type Config struct {
 	Language string `toml:"language,omitempty" json:"language,omitempty"`
 	// Proxy routes all Booksy traffic through http(s)/socks5(h) and never falls
 	// back to a direct connection. BOOKSY_PROXY overrides it. No credentials
-	// here: this file is world-readable.
+	// here: `config list` prints this file and scheduler units copy it.
 	Proxy string `toml:"proxy,omitempty" json:"proxy,omitempty"`
 	// APIKey overrides booksy.com's public web key. Normally unset: the CLI
 	// ships the current key and rediscovers it if Booksy changes it.
@@ -107,6 +107,10 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return cfg, err
 	}
+	// Files written before sinks were treated as secrets were 0644.
+	if st, err := os.Stat(path); err == nil && st.Mode().Perm()&0o077 != 0 {
+		_ = os.Chmod(path, 0o600)
+	}
 	dec := toml.NewDecoder(strings.NewReader(string(raw)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&cfg); err != nil {
@@ -120,7 +124,9 @@ func Save(path string, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return writeAtomic(path, out, 0o644)
+	// 0600: sink URLs (Discord/Slack webhooks, private ntfy topics) are
+	// credentials even though login tokens never live here.
+	return writeAtomic(path, out, 0o600)
 }
 
 // Session is one profile's imported login. The access token is the value of

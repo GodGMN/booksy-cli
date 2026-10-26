@@ -80,6 +80,10 @@ A staffer id, a case-insensitive name or substring, or `any`. Default any.
 - `cancel UID [--yes]`: refuses when Booksy's `actions.cancel` is false. Echoes `_version`.
 - `reschedule UID --at TIME [--note] [--dry-run] [--yes]`: `drafts/edit_appointment`, then the same steps as book from 3 on.
 
+### bookmark
+
+`add` and `remove` run without a prompt: they are private to the account and undone by each other, like the heart on booksy.com.
+
 ### auth
 
 - `login [--cookies FILE|-] [--cookies-stdin] [--cookies-format auto|json|netscape|header]`: without a file, prompts (TTY only) for a pasted value or a path. Reads `identity-<cc>` cookies and `_bf`, from booksy.com domains only. One identity cookie picks the country unless `--country` is given. `GET /me` validates it before saving. Saves to `credentials.toml` (0600). Seeds `profiles.NAME.country` and, if unset, `profiles.NAME.location` from the account. The first Profile becomes the default. Refused while `BOOKSY_ACCESS_TOKEN` is set.
@@ -96,7 +100,7 @@ A staffer id, a case-insensitive name or substring, or `any`. Default any.
 - `events [NAME] [--since D] [--limit N]`
 - `service install|uninstall|status`: systemd user timer (`booksy-watch-PROFILE`) or launchd agent running `watch check --all --profile P --format jsonl`, logging to the state dir. Windows prints a schtasks command.
 
-Check semantics: open = fetched Slots after the filter. New = open, not seen last time, and dated on or before the Horizon (the latest seen date, or last check plus `days` when nothing was seen). One `slots.opened` event per Check with news. Slots no longer open are forgotten, so a reopened Slot fires again. Events go to sinks before the state commit, so a crash re-emits rather than loses.
+Check semantics: open = fetched Slots after the filter. New = open, not seen last time, and dated on or before the Horizon (the latest seen date, or last check plus `days` when nothing was seen). One `slots.opened` event per Check with news. Slots no longer open are forgotten, so a reopened Slot fires again. Events go to sinks before the state commit, so a crash re-emits rather than loses. If any delivery fails, the check is not committed and the command exits non-zero: the next check reports the same slots again (sinks that did get them get a duplicate). Named `check` and `remove` refuse a watch of another profile (exit 4). Two checks of one watch running at the same moment (timer plus manual) can both report the same slots; this is accepted rather than locked.
 
 Event JSON:
 
@@ -111,7 +115,7 @@ Event JSON:
 
 | file | contents |
 |---|---|
-| `$XDG_CONFIG_HOME/booksy-cli/config.toml` (or `BOOKSY_CONFIG`) | default_profile, country, language, proxy, profiles, watch, sinks. World-readable, never secrets. Unknown keys are errors. |
+| `$XDG_CONFIG_HOME/booksy-cli/config.toml` (or `BOOKSY_CONFIG`) | default_profile, country, language, proxy, api_key, profiles, watch, sinks. 0600, since sink URLs and ntfy topics grant access (older 0644 files are tightened on load). Never login tokens or proxy credentials. Unknown keys are errors. `sink list` hides webhook paths and topics; `config get` shows them. |
 | `$XDG_CONFIG_HOME/booksy-cli/credentials.toml` | per-profile access token, fingerprint, account name and email, import time, cookie expiry. 0600. |
 | `$XDG_DATA_HOME/booksy-cli/state.db` | SQLite: watches, seen slots, events. 0600. |
 | `$XDG_DATA_HOME/booksy-cli/web-api-key` | the web api key, only after Booksy changed it and it was rediscovered |
@@ -119,9 +123,13 @@ Event JSON:
 
 Proxy: `BOOKSY_PROXY` or `proxy` (http, https, socks5, socks5h). Never a direct fallback. Credentials only via the env var.
 
+Profile names match `[A-Za-z0-9][A-Za-z0-9._-]{0,63}`: they end up in file paths and scheduler units.
+
+The HTTP client refuses redirects that change scheme or host, because Go would re-send `X-Access-Token` to the new host.
+
 ## 5. Output
 
-JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, http_status, endpoint, suggested_commands, issue_url}`. Endpoints in errors have ids replaced by `{id}`.
+JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, http_status, endpoint, suggested_commands, issue_url}`. Endpoints in errors have ids replaced by `{id}`. Issue links never include response bodies.
 
 ## 6. Exit codes
 

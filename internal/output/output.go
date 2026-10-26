@@ -215,7 +215,8 @@ func IssueURL(version, command string, e *booksy.Error) string {
 	if e.Status != 0 {
 		q.Set("status", fmt.Sprint(e.Status))
 	}
-	q.Set("body_excerpt", e.Body)
+	// The response body stays out: it can carry names, notes or addresses,
+	// and a URL ends up in browser history and on GitHub. --debug shows it.
 	return repo + "/issues/new?" + q.Encode()
 }
 

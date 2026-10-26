@@ -319,3 +319,64 @@ func TestWebKeyRotation(t *testing.T) {
 		t.Fatalf("unrecoverable key should exit 7: %d %s", r.code, r.stderr)
 	}
 }
+
+func TestFailedDeliveryIsRetried(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Slots[today(1)] = []string{"10:00"}
+	flag := filepath.Join(h.dir, "fail")
+	got := filepath.Join(h.dir, "got")
+	script := filepath.Join(h.dir, "sink.sh")
+	body := "#!/bin/sh\nif [ -e " + flag + " ]; then exit 1; fi\ncat >> " + got + "\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h.ok("config", "set", "sinks.s.type", "exec")
+	h.ok("config", "set", "sinks.s.command", script)
+	h.ok("watch", "add", "slots", "3349", "--service", "273164", "--notify", "s", "--name", "w")
+
+	os.WriteFile(flag, nil, 0o600)
+	h.srv.Slots[today(1)] = []string{"10:00", "18:00"}
+	if r := h.run("", "watch", "check", "w"); r.code == 0 || !strings.Contains(r.stderr, "sent again") {
+		t.Fatalf("a failed delivery must fail the check: %d %s", r.code, r.stderr)
+	}
+	os.Remove(flag)
+	evs := decode[[]any](t, h.ok("watch", "check", "w"))
+	raw, _ := os.ReadFile(got)
+	if len(evs) != 1 || !strings.Contains(string(raw), today(1)+"T18:00") {
+		t.Fatalf("the slot should be delivered on the next check: %v %s", evs, raw)
+	}
+}
+
+func TestWatchesStayInTheirProfile(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Slots[today(1)] = []string{"10:00"}
+	h.ok("watch", "add", "slots", "3349", "--service", "273164", "--name", "mine")
+	for _, args := range [][]string{{"watch", "remove", "mine"}, {"watch", "check", "mine"}} {
+		if r := h.run("", append(args, "--profile", "other")...); r.code != 4 || !strings.Contains(r.stderr, `profile "default"`) {
+			t.Fatalf("%v from another profile: %d %s", args, r.code, r.stderr)
+		}
+	}
+	h.ok("watch", "remove", "mine")
+	for _, bad := range []string{"a b", "../x", "x\ny"} {
+		if r := h.run("", "auth", "status", "--profile", bad); r.code != 2 {
+			t.Fatalf("profile %q: %d", bad, r.code)
+		}
+	}
+}
+
+func TestSinkListHidesSecrets(t *testing.T) {
+	h := newHarness(t)
+	h.ok("config", "set", "sinks.d.type", "webhook")
+	h.ok("config", "set", "sinks.d.url", "https://discord.com/api/webhooks/123/SECRET")
+	h.ok("config", "set", "sinks.p.type", "ntfy")
+	h.ok("config", "set", "sinks.p.url", "https://ntfy.sh")
+	h.ok("config", "set", "sinks.p.topic", "verysecrettopic")
+	out := h.ok("sink", "list")
+	if strings.Contains(out, "SECRET") || strings.Contains(out, "verysecrettopic") || !strings.Contains(out, "discord.com") {
+		t.Fatalf("%s", out)
+	}
+	info, _ := os.Stat(filepath.Join(h.dir, "config", "booksy-cli", "config.toml"))
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("config.toml mode %v", info.Mode())
+	}
+}

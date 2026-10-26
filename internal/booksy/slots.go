@@ -156,6 +156,7 @@ func normalizeStart(s string) (string, error) {
 
 // ParseStart is normalizeStart for callers outside the package.
 func ParseStart(s string) (date, clock string, err error) {
+	s = strings.TrimSpace(s)
 	n, err := normalizeStart(s)
 	if err != nil {
 		return "", "", err

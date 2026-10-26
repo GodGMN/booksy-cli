@@ -355,6 +355,9 @@ func (a *App) profileCmd() *cobra.Command {
 		Short: "Make a profile the default",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !watchName.MatchString(args[0]) {
+				return output.Usagef("profile name %q: use letters, digits, dot, dash or underscore", args[0])
+			}
 			a.Cfg.DefaultProfile = args[0]
 			if err := a.saveConfig(); err != nil {
 				return err

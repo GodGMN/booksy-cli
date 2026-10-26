@@ -55,11 +55,26 @@ type Client struct {
 
 func New(country string) *Client {
 	return &Client{
-		HTTP:      &http.Client{Timeout: 30 * time.Second, Transport: http.DefaultTransport.(*http.Transport).Clone()},
+		HTTP:      &http.Client{Timeout: 30 * time.Second, Transport: http.DefaultTransport.(*http.Transport).Clone(), CheckRedirect: sameOrigin},
 		Country:   country,
 		APIKey:    WebAPIKey,
 		UserAgent: browserUA,
 	}
+}
+
+// sameOrigin refuses any redirect that leaves the first request's scheme and
+// host. Go re-sends custom headers such as X-Access-Token on every hop, so a
+// redirect elsewhere (or to plain http) would hand the login to that host.
+// The API itself never redirects; booksy.com only redirects within itself.
+func sameOrigin(req *http.Request, via []*http.Request) error {
+	if len(via) >= 5 {
+		return errors.New("too many redirects")
+	}
+	first := via[0].URL
+	if req.URL.Scheme != first.Scheme || req.URL.Host != first.Host {
+		return fmt.Errorf("refusing redirect from %s to %s://%s", first.Host, req.URL.Scheme, req.URL.Host)
+	}
+	return nil
 }
 
 // UseProxy routes every request through u. There is no direct fallback.

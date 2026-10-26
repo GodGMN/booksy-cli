@@ -22,7 +22,7 @@ body:
     id: body_excerpt
     attributes:
       label: Response excerpt
-      description: Already redacted by the CLI. Check that it has no personal data before submitting.
+      description: Optional. Paste from `--debug` only after removing names, emails, phone numbers, notes and addresses.
   - type: textarea
     id: notes
     attributes: {label: Anything else}

@@ -175,7 +175,7 @@ func (a *App) configCmd() *cobra.Command {
 					if u, err := booksy.ParseProxy(cfg.Proxy); err != nil {
 						return output.Usagef("proxy: %v", err)
 					} else if u.User != nil {
-						return output.Usagef("proxy: config.toml is world-readable; pass a proxy with credentials through BOOKSY_PROXY instead")
+						return output.Usagef("proxy: keep proxy credentials out of config.toml (it is printed by `config list`); pass them through BOOKSY_PROXY instead")
 					}
 				}
 				if cfg.Watch.Interval != "" {

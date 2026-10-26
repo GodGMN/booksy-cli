@@ -3,6 +3,8 @@ package booksy_test
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -265,5 +267,39 @@ func TestKeyRediscovery(t *testing.T) {
 	srv.Key = "web-99999999-2222-3333-4444-555555555555"
 	if _, err := c.Categories(context.Background()); kind(err) != booksy.KindAPIChanged || calls != 1 {
 		t.Fatalf("second rotation: %v calls=%d", err, calls)
+	}
+}
+
+func TestParseStartNeedsATime(t *testing.T) {
+	for _, in := range []string{"2026-10-28", "2026-10-28 ", " 2026-10-28\n"} {
+		if _, _, err := booksy.ParseStart(in); kind(err) != booksy.KindUsage {
+			t.Errorf("%q should need a time, got %v", in, err)
+		}
+	}
+	if d, c, err := booksy.ParseStart(" 2026-10-28 18:30 "); err != nil || d != "2026-10-28" || c != "18:30" {
+		t.Errorf("%s %s %v", d, c, err)
+	}
+}
+
+func TestRedirectsNeverLeaveTheOrigin(t *testing.T) {
+	var leaked string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("X-Access-Token")
+		w.Write([]byte(`{"customer":{"id":1}}`))
+	}))
+	defer other.Close()
+	// 127.0.0.1 vs localhost: same machine, different origin.
+	target := strings.Replace(other.URL, "127.0.0.1", "localhost", 1)
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target+r.URL.Path, http.StatusFound)
+	}))
+	defer api.Close()
+	c := booksy.New("es")
+	c.BaseURL, c.AccessToken = api.URL, "secret-token"
+	if _, err := c.Me(context.Background()); err == nil {
+		t.Fatal("a cross-origin redirect must fail")
+	}
+	if leaked != "" {
+		t.Fatalf("token reached the redirect target: %q", leaked)
 	}
 }

@@ -9,9 +9,8 @@ How to drive `booksy`, the Booksy CLI, from scripts and agents.
   `code`, `category`, `retryable` and `suggested_commands`.
 - Exit codes: 0 ok, 1 generic, 2 usage, 3 auth, 4 not found, 5 blocked or rate
   limited, 6 network, 7 Booksy changed its API, 130 interrupted.
-- Always pass `--no-input`. Commands that change something on the account
-  (`book`, `appointment cancel`, `appointment reschedule`, `bookmark add/remove`)
-  then need `--yes`. Do not pass `--yes` unless the user asked for that exact
+- Always pass `--no-input`. Commands that the business sees (`book`,
+  `appointment cancel`, `appointment reschedule`) then need `--yes`. Do not pass `--yes` unless the user asked for that exact
   action; prefer `--dry-run` first and show the summary.
 - Times are the business's local time, written `2026-10-30T18:00`.
 

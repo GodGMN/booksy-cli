@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -173,7 +174,9 @@ func (a *App) watchAddSlotsCmd() *cobra.Command {
 				_ = st.RemoveWatch(ctx, w.Name)
 				return err
 			}
-			a.deliver(ctx, w, res.Events)
+			if err := a.deliver(ctx, w, res.Events); err != nil {
+				a.notice("%v", err)
+			}
 			if err := st.CommitCheck(ctx, w.ID, res.Present, res.Removed, res.Events); err != nil {
 				return err
 			}
@@ -270,9 +273,10 @@ func (a *App) watchRemoveCmd() *cobra.Command {
 				return err
 			}
 			for _, n := range args {
-				if err := st.RemoveWatch(cmd.Context(), n); errors.Is(err, store.ErrNotFound) {
-					return booksy.NotFound("no watch named %q", n)
-				} else if err != nil {
+				if _, err := a.ownWatch(cmd.Context(), st, n); err != nil {
+					return err
+				}
+				if err := st.RemoveWatch(cmd.Context(), n); err != nil {
 					return err
 				}
 			}
@@ -296,7 +300,12 @@ func (l eventList) Pretty(w io.Writer, color bool) {
 	output.Table(w, color, []string{"WHEN", "WATCH", "EVENT", "DETAIL", "URL"}, rows)
 }
 
-func (a *App) deliver(ctx context.Context, w store.Watch, events []store.Event) {
+// deliver sends events to the watch's sinks. It returns an error when any
+// delivery failed, so the caller can leave the check uncommitted: the next
+// check then reports the same slots again. A duplicate alert beats a missed
+// one, since a missed cancellation is exactly what a watch exists to catch.
+func (a *App) deliver(ctx context.Context, w store.Watch, events []store.Event) error {
+	failed := 0
 	for _, ev := range events {
 		for _, name := range w.Sinks {
 			cfg, ok := a.Cfg.Sinks[name]
@@ -306,9 +315,14 @@ func (a *App) deliver(ctx context.Context, w store.Watch, events []store.Event) 
 			}
 			if err := sink.Deliver(ctx, name, cfg, ev); err != nil {
 				a.notice("sink %s: %v", name, err)
+				failed++
 			}
 		}
 	}
+	if failed > 0 {
+		return fmt.Errorf("watch %s: %d deliveries failed; the slots stay unreported and will be sent again on the next check", w.Name, failed)
+	}
+	return nil
 }
 
 // runChecks checks the given watches, delivers events, commits, and returns
@@ -329,13 +343,34 @@ func (a *App) runChecks(ctx context.Context, st *store.Store, ws []store.Watch) 
 			}
 			continue
 		}
-		a.deliver(ctx, w, res.Events)
+		all = append(all, res.Events...)
+		if err := a.deliver(ctx, w, res.Events); err != nil {
+			a.notice("%v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
 		if err := st.CommitCheck(ctx, w.ID, res.Present, res.Removed, res.Events); err != nil {
 			return all, err
 		}
-		all = append(all, res.Events...)
 	}
 	return all, firstErr
+}
+
+// ownWatch loads a watch by name, refusing one that belongs to another
+// profile: it would run with this profile's login and country.
+func (a *App) ownWatch(ctx context.Context, st *store.Store, name string) (store.Watch, error) {
+	w, err := st.Watch(ctx, name)
+	if errors.Is(err, store.ErrNotFound) {
+		return w, booksy.NotFound("no watch named %q", name)
+	} else if err != nil {
+		return w, err
+	}
+	if w.Profile != a.Profile {
+		return w, booksy.NotFound("watch %q belongs to profile %q; pass --profile %s", name, w.Profile, w.Profile)
+	}
+	return w, nil
 }
 
 // selectWatches picks named watches, or the due ones (or all with force).
@@ -343,10 +378,8 @@ func (a *App) selectWatches(ctx context.Context, st *store.Store, names []string
 	if len(names) > 0 {
 		var out []store.Watch
 		for _, n := range names {
-			w, err := st.Watch(ctx, n)
-			if errors.Is(err, store.ErrNotFound) {
-				return nil, booksy.NotFound("no watch named %q", n)
-			} else if err != nil {
+			w, err := a.ownWatch(ctx, st, n)
+			if err != nil {
 				return nil, err
 			}
 			out = append(out, w)
@@ -528,6 +561,21 @@ func (l sinkList) Pretty(w io.Writer, color bool) {
 	output.Table(w, color, []string{"NAME", "TYPE", "TARGET", "PROBLEM"}, rows)
 }
 
+// redactSink hides the parts of a sink that grant access: webhook paths
+// carry tokens and an ntfy topic is its own password. `config get` still
+// shows them for the user who asks explicitly.
+func redactSink(c config.SinkConfig) config.SinkConfig {
+	if u, err := url.Parse(c.URL); err == nil && u.Host != "" {
+		if u.Path != "" && u.Path != "/" || u.RawQuery != "" {
+			c.URL = u.Scheme + "://" + u.Host + "/…"
+		}
+	}
+	if len(c.Topic) > 3 {
+		c.Topic = c.Topic[:2] + "…"
+	}
+	return c
+}
+
 func (a *App) sinkCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sink",
@@ -560,7 +608,7 @@ or with ` + "`booksy config set sinks.phone.type ntfy`" + ` and friends.`,
 			sort.Strings(names)
 			out := sinkList{}
 			for _, n := range names {
-				row := sinkRow{Name: n, SinkConfig: a.Cfg.Sinks[n]}
+				row := sinkRow{Name: n, SinkConfig: redactSink(a.Cfg.Sinks[n])}
 				if err := sink.Validate(n, row.SinkConfig); err != nil {
 					row.Error = err.Error()
 				}

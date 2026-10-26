@@ -175,6 +175,10 @@ func (a *App) setup(cmd *cobra.Command) error {
 		return err
 	}
 	a.Profile = config.ResolveProfile(a.flagProfile, a.Cfg)
+	// Profile names end up in file paths and scheduler unit files.
+	if !watchName.MatchString(a.Profile) {
+		return output.Usagef("profile name %q: use letters, digits, dot, dash or underscore", a.Profile)
+	}
 	a.Country = config.ResolveCountry(a.flagCountry, a.Profile, a.Cfg, a.Creds)
 	if len(a.Country) != 2 {
 		return output.Usagef("country %q should be a two-letter code such as es, us or pl", a.Country)
@@ -243,7 +247,7 @@ func (a *App) applyProxy() error {
 		return output.Usagef("%s: %v. Nothing is sent to booksy until it is fixed", src, err)
 	}
 	if u.User != nil && src != "BOOKSY_PROXY" {
-		return output.Usagef("config proxy: config.toml is world-readable, so it must not hold proxy credentials. Pass a proxy with credentials through BOOKSY_PROXY")
+		return output.Usagef("config proxy: keep proxy credentials out of config.toml (it is printed by `config list` and copied into scheduler units). Pass them through BOOKSY_PROXY")
 	}
 	a.Client.UseProxy(u)
 	return nil
