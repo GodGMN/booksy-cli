@@ -21,7 +21,11 @@ curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/inst
 booksy doctor
 ```
 
-It downloads the release for your OS and CPU, checks it against `checksums.txt`, and puts `booksy` in `~/.local/bin` (`BOOKSY_INSTALL_DIR` changes that, `BOOKSY_VERSION=v0.2.0` pins a version). While the repository is private it downloads through a logged-in `gh` CLI, so run `gh auth login` first, or use `gh api` to fetch the script.
+It downloads the release for your OS and CPU, checks it against `checksums.txt`, and puts `booksy` in `~/.local/bin` (`BOOKSY_INSTALL_DIR` changes that, `BOOKSY_VERSION=v0.2.0` pins a version). While the repository is private, `raw.githubusercontent.com` refuses anonymous requests, so fetch the script through a logged-in `gh` instead; it then downloads the release with `gh` too:
+
+```bash
+gh api repos/GodGMN/booksy-cli/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | sh
+```
 
 Windows: download the zip for your CPU from the releases page and put `booksy.exe` on your `PATH`.
 
