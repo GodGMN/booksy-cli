@@ -20,6 +20,7 @@ type BookingResult struct {
 	DryRun      bool                `json:"dry_run"`
 	Draft       booksy.Draft        `json:"draft"`
 	Summary     booksy.Confirmation `json:"summary"`
+	Payment     *booksy.Payment     `json:"payment,omitempty"`
 	Appointment *booksy.Appointment `json:"appointment,omitempty"`
 }
 
@@ -31,6 +32,7 @@ func (r BookingResult) Pretty(w io.Writer, color bool) {
 		fmt.Fprintln(w, bold("Dry run: nothing was booked.", color))
 	}
 	summaryPretty(w, r.Summary, color)
+	paymentPretty(w, r.Payment)
 	if r.Appointment != nil {
 		fmt.Fprintf(w, "appointment %d · %s\n", r.Appointment.UID, r.Appointment.Status)
 	}
@@ -47,6 +49,21 @@ func summaryPretty(w io.Writer, s booksy.Confirmation, color bool) {
 	}
 	if s.Policy != "" {
 		fmt.Fprintln(w, output.Dim(s.Policy, color))
+	}
+}
+
+func paymentPretty(w io.Writer, p *booksy.Payment) {
+	if p == nil {
+		return
+	}
+	if p.NeedsPrepayment() {
+		fmt.Fprintf(w, "prepayment required: %s\n", p.Prepayment)
+	}
+	if p.ToPayLater != "" {
+		fmt.Fprintf(w, "pay at the business: %s\n", p.ToPayLater)
+	}
+	if p.HasCancellationFee() {
+		fmt.Fprintf(w, "cancellation fee: %s if you cancel late or do not show up\n", p.CancellationFee)
 	}
 }
 
@@ -74,11 +91,23 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 		return err
 	}
 	res := BookingResult{DryRun: dryRun, Draft: d, Summary: sum}
+	// Pricing needs a login; an anonymous dry run shows the rest.
+	if a.Client.HasToken() {
+		pay, err := a.Client.PaymentCalc(ctx, d)
+		if err != nil {
+			return err
+		}
+		res.Payment = &pay
+		if pay.NeedsPrepayment() && !dryRun {
+			return booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
+		}
+	}
 	if dryRun {
 		return a.Printer.Print(res)
 	}
 	if a.Interactive && !yes {
 		summaryPretty(a.Stderr, sum, false)
+		paymentPretty(a.Stderr, res.Payment)
 	}
 	if err := a.confirm(yes, verb+"?"); err != nil {
 		return err
@@ -92,7 +121,7 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 		if ap, err := a.Client.Appointment(ctx, done.CoreID); err == nil {
 			res.Appointment = &ap
 			if ap.Status == "awaiting_payment" {
-				a.notice("booked, but %s wants a card on file or a prepayment before it is confirmed. Finish it on booksy.com (My appointments), or cancel with `booksy appointment cancel %d`", ap.Business, ap.UID)
+				a.notice("booked, but booksy left it awaiting payment instead of confirmed. Check it on booksy.com (My appointments), or cancel with `booksy appointment cancel %d`", ap.UID)
 			}
 		} else {
 			a.notice("booked, but fetching the appointment failed: %v", err)

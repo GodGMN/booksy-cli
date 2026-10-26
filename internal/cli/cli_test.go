@@ -153,6 +153,14 @@ func TestBookFlow(t *testing.T) {
 	if !res.Booked || res.Appointment == nil || res.Appointment.UID != fakebooksy.AppointUID || h.srv.Scheduled != 1 {
 		t.Fatalf("book: %+v", res)
 	}
+	if h.srv.LastBookedStatus != "A" || res.Payment == nil || res.Payment.CancellationFee != "11.00" {
+		t.Fatalf("booking must be priced before schedule so it confirms: %s %+v", h.srv.LastBookedStatus, res.Payment)
+	}
+	h.srv.Prepayment = "5.00"
+	if r := h.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); r.code != 2 || !strings.Contains(r.stderr, "prepayment") || h.srv.Scheduled != 1 {
+		t.Fatalf("a prepayment must be refused before schedule: %d %s", r.code, r.stderr)
+	}
+	h.srv.Prepayment = "0.00"
 	calls := strings.Join(h.srv.CallLog(), "\n")
 	for _, want := range []string{"change_staffer", "add_customer_note", "/schedule"} {
 		if !strings.Contains(calls, want) {

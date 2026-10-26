@@ -69,9 +69,10 @@ A staffer id, a case-insensitive name or substring, or `any`. Default any.
 2. Ensure the Profile has a Fingerprint (minted once and saved).
 3. `POST drafts/create`, then `change_staffer` if a staffer was asked for and not assigned, then `change_timeslot` (an unavailable time is exit 2), then `add_customer_note`, then `GET confirmation`.
 4. `--dry-run` prints `{booked:false, dry_run:true, draft, summary}` and stops.
-5. Interactive: the summary goes to stderr and `Book this? [y/N]` is asked. Non-interactive without `--yes` is exit 2. Nothing is booked in either refusal.
+5. With a login, `POST me/payments/calc/ {draft_id}` prices the draft, as booksy.com's review screen does; the result is `payment {prepayment, cancellation_fee, to_pay_later}`. A prepayment above 0 is refused (exit 2): only booksy.com's card form can pay it. A cancellation fee alone is fine; the service is paid at the business. A draft scheduled without this call was left in status `O` (awaiting payment) and later cancelled by Booksy.
+5b. Interactive: the summary goes to stderr and `Book this? [y/N]` is asked. Non-interactive without `--yes` is exit 2. Nothing is booked in either refusal.
 6. `POST drafts/{id}/schedule`, then `GET me/appointments/{core_id}/`. Prints `{booked:true, draft, summary, appointment}`.
-7. A business with no-show protection or prepayment leaves the appointment in status `awaiting_payment` (Booksy `O`) until a card is attached through booksy.com's Stripe form. The CLI does not handle cards; it warns on stderr and points to booksy.com or `appointment cancel`.
+7. If an appointment still comes back as `awaiting_payment` (Booksy `O`), the CLI warns on stderr and points to booksy.com or `appointment cancel`. The CLI never handles cards.
 
 ### appointment
 
@@ -162,6 +163,7 @@ All requests send `X-Api-Key: web-e3d812bf-d7a2-445d-ab38-55589ae6a121` (booksy.
 | | `POST /drafts/{id}/change_staffer` `{version,subbooking_id,staffer_id}` | fingerprint |
 | | `POST /drafts/{id}/add_customer_note` `{customer_note,version}` | fingerprint |
 | | `GET /drafts/{id}/confirmation` | fingerprint |
+| | `POST /me/payments/calc/` `{draft_id}` | yes |
 | | `POST /drafts/{id}/schedule` `{meta}` | yes |
 | | `POST /drafts/edit_appointment` `{appointment_id,meta}` | yes |
 | me | `GET /me` | yes |

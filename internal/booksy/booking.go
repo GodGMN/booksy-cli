@@ -3,6 +3,7 @@ package booksy
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -212,6 +213,53 @@ func (c *Client) Confirmation(ctx context.Context, d Draft) (Confirmation, error
 		out.Lines = append(out.Lines, strings.Join(kept, " · "))
 	}
 	return out, nil
+}
+
+// Payment is what Booksy will ask for, from payments/calc on a draft.
+// Amounts are decimal strings in the business's currency, as Booksy sends them.
+type Payment struct {
+	// Prepayment must be paid by card before the booking is confirmed.
+	Prepayment string `json:"prepayment"`
+	// CancellationFee is charged only for a late cancellation or a no-show.
+	CancellationFee string `json:"cancellation_fee"`
+	// ToPayLater is paid at the business after the service.
+	ToPayLater string `json:"to_pay_later"`
+}
+
+// NeedsPrepayment reports a prepayment above zero, which only booksy.com's
+// card form can settle.
+func (p Payment) NeedsPrepayment() bool { return positive(p.Prepayment) }
+
+// HasCancellationFee reports a no-show/late-cancellation fee above zero.
+func (p Payment) HasCancellationFee() bool { return positive(p.CancellationFee) }
+
+func positive(s string) bool {
+	f, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", "."), 64)
+	return err == nil && f > 0
+}
+
+// PaymentCalc prices the draft. booksy.com runs it on the review screen,
+// before schedule; a draft scheduled without it was left awaiting payment
+// (status O) even with nothing to prepay, so Book always calls it first.
+func (c *Client) PaymentCalc(ctx context.Context, d Draft) (Payment, error) {
+	if err := c.requireToken("POST /me/payments/calc/"); err != nil {
+		return Payment{}, err
+	}
+	var raw struct {
+		AppointmentPayment *struct {
+			PrepaymentTotal      string `json:"prepayment_total"`
+			CancellationFeeTotal string `json:"cancellation_fee_total"`
+			ToPayLater           string `json:"to_pay_later"`
+		} `json:"appointment_payment"`
+	}
+	if err := c.call(ctx, "POST", "/me/payments/calc/", nil, map[string]any{"draft_id": d.ID}, &raw); err != nil {
+		return Payment{}, err
+	}
+	if raw.AppointmentPayment == nil {
+		return Payment{}, &Error{Kind: KindAPIChanged, Endpoint: "POST /me/payments/calc/", Msg: "payment calculation has no appointment_payment"}
+	}
+	p := raw.AppointmentPayment
+	return Payment{Prepayment: p.PrepaymentTotal, CancellationFee: p.CancellationFeeTotal, ToPayLater: p.ToPayLater}, nil
 }
 
 // Schedule books the draft. This is the only call in the flow with an effect.

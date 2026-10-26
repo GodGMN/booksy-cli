@@ -31,20 +31,24 @@ type Server struct {
 	Slots map[string][]string // date -> times
 	// Key is the web api key the fake accepts and serves from its fake
 	// booksy.com scripts. Change it to simulate Booksy rotating the key.
-	Key       string
-	WebHits   int
-	Calls     []string
-	Scheduled int
-	Cancelled int
-	drafts    map[string]map[string]any
-	nextDraft int
+	Key     string
+	WebHits int
+	// Prepayment is what payments/calc reports; "0.00" unless a test sets it.
+	Prepayment       string
+	LastBookedStatus string
+	Calls            []string
+	Scheduled        int
+	Cancelled        int
+	drafts           map[string]map[string]any
+	nextDraft        int
 }
 
 func New() *Server {
 	s := &Server{
-		Slots:  map[string][]string{},
-		drafts: map[string]map[string]any{},
-		Key:    DefaultKey,
+		Slots:      map[string][]string{},
+		drafts:     map[string]map[string]any{},
+		Key:        DefaultKey,
+		Prepayment: "0.00",
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
@@ -223,8 +227,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 				apiErr(w, 403, "required", "Se requiere un token de autorización para este endpoint.", "auth_header_token")
 				return
 			}
-			d["status"], d["core_id"] = "A", AppointUID
+			// Like the real API: skipping payments/calc leaves it awaiting payment.
+			status := "O"
+			if d["priced"] == true {
+				status = "A"
+			}
+			d["status"], d["core_id"] = status, AppointUID
 			s.Scheduled++
+			s.LastBookedStatus = status
 		default:
 			apiErr(w, 404, "not_found", "no action", "")
 			return
@@ -273,6 +283,15 @@ func (s *Server) serveMe(w http.ResponseWriter, r *http.Request, path string, bo
 		}
 		s.Cancelled++
 		write(w, 200, map[string]any{"appointment": appointment("C")})
+	case r.Method == "POST" && path == "/me/payments/calc/":
+		d, ok := s.drafts[fmt.Sprint(body["draft_id"])]
+		if !ok {
+			apiErr(w, 404, "not_found", "no draft", "draft_id")
+			return
+		}
+		d["priced"] = true
+		write(w, 200, map[string]any{"appointment": map[string]any{"status": "A"}, "appointment_payment": map[string]any{
+			"prepayment": s.Prepayment, "prepayment_total": s.Prepayment, "cancellation_fee": "11.00", "cancellation_fee_total": "11.00", "to_pay_later": "17.00"}})
 	case r.Method == "GET" && path == "/me/bookmarks/":
 		write(w, 200, map[string]any{"businesses": []any{business()}})
 	case (r.Method == "PUT" || r.Method == "DELETE") && path == fmt.Sprintf("/me/bookmarks/%d/", BusinessID):
