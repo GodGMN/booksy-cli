@@ -82,10 +82,15 @@ var statusNames = map[string]string{
 	"F": "finished",
 	"N": "no_show",
 	"W": "awaiting_confirmation",
-	"P": "pending_payment",
+	"P": "proposed",
 	"R": "rejected",
 	"D": "declined",
 	"M": "modified",
+	// O: booked, but the business wants a card on file (no-show protection)
+	// or a prepayment, which only booksy.com's Stripe form can provide.
+	"O": "awaiting_payment",
+	"V": "awaiting_account_verification",
+	"X": "unknown",
 }
 
 func statusName(code string) string {

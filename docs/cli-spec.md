@@ -71,6 +71,7 @@ A staffer id, a case-insensitive name or substring, or `any`. Default any.
 4. `--dry-run` prints `{booked:false, dry_run:true, draft, summary}` and stops.
 5. Interactive: the summary goes to stderr and `Book this? [y/N]` is asked. Non-interactive without `--yes` is exit 2. Nothing is booked in either refusal.
 6. `POST drafts/{id}/schedule`, then `GET me/appointments/{core_id}/`. Prints `{booked:true, draft, summary, appointment}`.
+7. A business with no-show protection or prepayment leaves the appointment in status `awaiting_payment` (Booksy `O`) until a card is attached through booksy.com's Stripe form. The CLI does not handle cards; it warns on stderr and points to booksy.com or `appointment cancel`.
 
 ### appointment
 
@@ -163,6 +164,6 @@ All requests send `X-Api-Key: web-e3d812bf-d7a2-445d-ab38-55589ae6a121` (booksy.
 
 Draft `meta` is `{app_version:"3.0", platform:"web", device_type:"Desktop", booking_source:"Business_Details"}`.
 
-Verified live on 2026-10-26: everything above except `schedule`, `cancel` and bookmark `PUT`/`DELETE`, which change the account and were taken from the bundles. `schedule` without a token returns 403 `auth_header_token`, as expected. `edit_appointment` was verified with a dry run that stopped before `schedule`.
+Verified live on 2026-10-26: everything above, including one real `schedule` (it returned an appointment in status `O` because that business requires a card on file). Not exercised live: `cancel` and bookmark `PUT`/`DELETE`. `edit_appointment` was verified with a dry run that stopped before `schedule`.
 
 Seen in the bundles but not used: `me/appointments/wait_list` (Booksy's own waitlist), `drafts/{id}/timeslots`, `drafts/{id}/set_first_available_time_slot`, `drafts/book_again`, payments, vouchers, stream chat.

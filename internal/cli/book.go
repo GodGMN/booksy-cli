@@ -91,6 +91,9 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 	if done.CoreID != 0 {
 		if ap, err := a.Client.Appointment(ctx, done.CoreID); err == nil {
 			res.Appointment = &ap
+			if ap.Status == "awaiting_payment" {
+				a.notice("booked, but %s wants a card on file or a prepayment before it is confirmed. Finish it on booksy.com (My appointments), or cancel with `booksy appointment cancel %d`", ap.Business, ap.UID)
+			}
 		} else {
 			a.notice("booked, but fetching the appointment failed: %v", err)
 		}
