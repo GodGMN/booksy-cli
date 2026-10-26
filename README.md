@@ -2,168 +2,84 @@
 
 # booksy-cli
 
-`booksy` is a terminal client for [Booksy](https://booksy.com): search businesses, check open slots, get told when an earlier appointment opens up, and book, reschedule or cancel from your own account. It compiles to one static Go binary. Output is JSON by default so everything pipes into `jq`; `--format pretty` is for humans.
+Find, watch and book [Booksy](https://booksy.com) appointments from the terminal.
 
-It talks to Booksy's unofficial customer web API, the same one booksy.com and its booking widget use. Nothing here is endorsed by Booksy, and the API can change without notice.
+```bash
+booksy earliest barba --near Valencia --when "mon-fri 16:00-close" --when sat --format pretty
+```
+```
+DAY         TIME   BUSINESS                        DIST  SERVICE                    PRICE     BUSINESS_ID  VARIANT
+Tue 27 Oct  16:00  Barbería Vanellie Capelli       415m  Arreglo de barba Sencillo  12,00 €+  64989        1121918
+Tue 27 Oct  16:00  Barbershop Barberia Fabián Fe…  425m  Recorte de la barba        10,00 €+  168103       2360732
+...
+Recorte de la barba · 15 businesses checked, 2026-10-27 to 2026-11-09 · book with: booksy book BUSINESS_ID --service VARIANT --at DATETIME
+```
 
-The `X-Api-Key` in the code and docs is booksy.com's public web-client key, shipped to every browser; it is not a secret. If Booksy ever changes it, the CLI finds the new one on booksy.com by itself and saves it.
+- **Search** businesses around any place, and read their services, staff, hours and reviews.
+- **Open slots** for a service, filtered by your real schedule: `--when "mon-fri 16:00-close" --when sat`.
+- **The earliest slot anywhere:** the same kind of service compared across nearby businesses.
+- **Watch for cancellations:** get a phone notification (ntfy, Discord, Slack, a script) when an earlier slot opens.
+- **Book, reschedule and cancel** from your own account, always with a summary and a confirmation first.
+- **Made for scripts and AI agents:** JSON output, stable exit codes, machine-readable errors, `--dry-run`, and a usage guide built into the binary.
 
-## why
+One static binary for Linux, macOS and Windows. No login is needed to search, check slots or watch.
 
-The barber you want is booked out for three weeks, but people cancel all the time. `booksy watch` checks the calendar for you and pings your phone the moment a slot you'd take opens, and `booksy book` grabs it in one command.
-
-## install
-
-Linux and macOS:
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh | sh
 booksy doctor
 ```
 
-It downloads the release for your OS and CPU, checks it against `checksums.txt`, and puts `booksy` in `~/.local/bin` (`BOOKSY_INSTALL_DIR` changes that, `BOOKSY_VERSION=v0.2.0` pins a version). While the repository is private, `raw.githubusercontent.com` refuses anonymous requests, so fetch the script through a logged-in `gh` instead; it then downloads the release with `gh` too:
+Windows: download the zip from [releases](https://github.com/GodGMN/booksy-cli/releases). With Go: `go install github.com/GodGMN/booksy-cli/cmd/booksy@latest`. Update later with `booksy update`. More in [docs/install.md](docs/install.md).
+
+## Quickstart
 
 ```bash
-gh api repos/GodGMN/booksy-cli/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | sh
+# find a business and the variant id of the service you want
+booksy search barberia --near "Madrid" --format pretty
+booksy business services 3349 --format pretty
+
+# when could you go?
+booksy slots 3349 --service "corte de pelo" --when "mon-fri 17:00-close" --when sat --format pretty
+
+# book it (after logging in: docs/auth.md)
+booksy book 3349 --service "corte de pelo" --first --when "mon-fri 17:00-close" --dry-run --format pretty
+
+# or get told when something earlier opens up
+booksy watch add slots 3349 --service "corte de pelo" --before 2026-11-15 --notify phone
+booksy watch service install
 ```
 
-Windows: download the zip for your CPU from the releases page and put `booksy.exe` on your `PATH`.
+Output is JSON by default (pipe it into `jq`); `--format pretty` is for people.
 
-With Go: `go install github.com/GodGMN/booksy-cli/cmd/booksy@latest`, or `make install` from a clone.
+## Documentation
 
-## update
-
-```bash
-booksy update --check   # is there a newer release?
-booksy update           # verify and replace this binary (asks first; --yes skips)
-```
-
-Interactive commands print a one-line notice, at most once a day, when a newer release exists (`BOOKSY_NO_UPDATE_CHECK=1` turns it off). A private repository needs `GITHUB_TOKEN` or a logged-in `gh`.
-
-## releasing
-
-Push a version tag and GitHub Actions builds and publishes everything with goreleaser: Linux, macOS and Windows on amd64 and arm64, plus `checksums.txt`.
-
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-make snapshot   # the same build locally into dist/, nothing published
-```
-
-## quickstart
-
-No login needed to look around:
-
-```bash
-booksy search barberia --near "Valencia" --format pretty
-booksy business services 3349 --format pretty          # variant ids for --service
-booksy slots 3349 --service "corte de pelo" --between 17:00-20:00 --format pretty
-booksy book 3349 --service "corte de pelo" --first --dry-run --format pretty
-```
-
-`--service` takes a variant id, a service id that has one variant, or part of the service name. Business arguments take the numeric id or the booksy.com URL.
-
-## auth
-
-booksy.com keeps your login in a cookie called `identity-<country>` (`identity-es` in Spain), valid for about six months. The CLI imports it instead of asking for a password, so email, Google, Apple and Facebook logins all work the same way.
-
-1. log in at booksy.com in your browser
-2. export cookies for booksy.com with an extension such as Cookie-Editor (JSON), or copy the `identity-es` value
-3. import it:
-
-```bash
-booksy auth login --cookies ~/Downloads/booksy-cookies.json
-booksy auth status --check
-```
-
-Netscape `cookies.txt`, Cookie-Editor/EditThisCookie JSON, a `Cookie:` header and the bare value all work, and only booksy.com cookies are read. The token is checked against Booksy, then stored in `credentials.toml` (mode 0600), never in `config.toml`. For CI, set `BOOKSY_ACCESS_TOKEN` instead and nothing is written to disk.
-
-| credential | unlocks |
+| guide | |
 |---|---|
-| none | `search`, `category`, `place`, `business *`, `slots`, `book --dry-run`, watches |
-| login | `book`, `appointment *`, `me *`, `bookmark *` |
+| [Install and update](docs/install.md) | installer, Windows, `booksy update`, uninstall, releasing |
+| [Log in](docs/auth.md) | importing your booksy.com login, profiles, CI |
+| [Find businesses and slots](docs/finding-slots.md) | search, services and variants, `--when` schedules, `earliest` |
+| [Book, reschedule and cancel](docs/booking.md) | the booking flow, prepayments and no-show protection |
+| [Watch for cancellations](docs/watches.md) | watches, the timer, ntfy/webhook/script notifications |
+| [Configuration](docs/configuration.md) | config keys, files, environment variables, countries |
+| [Scripts and AI agents](docs/agents.md) | JSON contract, error envelope, the built-in agent guide |
+| [Troubleshooting](docs/troubleshooting.md) | exit codes and common problems |
+| [Specification](docs/cli-spec.md) | every command, flag, file and Booksy endpoint |
 
-## your schedule, and the earliest slot anywhere
+## Good to know
 
-`--when` describes when you can go, one entry per rule, and works with `slots`, `book --first`, `watch add slots` and `earliest`:
+- **Unofficial.** booksy-cli uses Booksy's customer web API, the one booksy.com and its booking widget use. It is not made or endorsed by Booksy, and Booksy can change that API at any time; the CLI then exits with code 7 and links a prefilled issue.
+- **Your login stays local.** It is imported from your browser's cookies, checked with Booksy, and stored in a file only you can read. Nothing is sent anywhere but Booksy.
+- **Cards are never handled.** Businesses that require a prepayment or use Booksy's no-show protection need a card on booksy.com or in the app; `book` stops and tells you so instead of leaving a half-made booking.
+- **Nothing happens by surprise.** Booking, rescheduling and cancelling show a summary and ask first. Without a terminal they refuse unless you pass `--yes`.
+- **Not a secret.** The `X-Api-Key` in the code is booksy.com's public web-client key that every browser receives. If Booksy changes it, the CLI picks up the new one from booksy.com by itself.
+- **Be gentle.** Watches check every 15 minutes by default (2 minutes at the fastest), and `earliest` queries a few businesses at a time.
 
-```bash
-booksy slots 99832 --service 1477667 --days 40 \
-  --when "mon-fri 16:00-close" --when "sat" --when "2026-12-24 off"
-```
+## Contributing
 
-Each business names its services itself ("Arreglo de barba", "Recorte de barba"), but Booksy files them all under one catalogue treatment. `earliest` uses that to compare businesses:
+`make check` runs vet, staticcheck and the tests, which use a fake Booksy server, never the real one. [AGENTS.md](AGENTS.md) has the project rules and [CONTEXT.md](CONTEXT.md) the vocabulary.
 
-```bash
-booksy earliest barba --near Xàtiva --when "mon-fri 16:00-close" --when sat --format pretty
-booksy treatment search barba     # see the treatments "barba" could mean
-```
+## License
 
-## watch for cancellations
-
-```bash
-booksy watch add slots 3349 --service "corte de pelo" --staff Javier \
-  --between 17:00-20:00 --before 2026-11-07 --notify phone
-booksy watch check --format jsonl            # one-shot; prints slots.opened events
-booksy watch service install --interval 10m  # systemd timer or launchd agent
-```
-
-The first check records what is open without reporting it. After that, each check that finds newly opened slots emits one `slots.opened` event with the earliest slot and the full list, and sends it to the watch's sinks. Slots that appear only because the booking window rolled forward a day are not reported.
-
-Sinks live in `config.toml`:
-
-```toml
-[sinks.phone]
-type = "ntfy"
-url = "https://ntfy.sh"
-topic = "my-secret-topic"
-
-[sinks.discord]
-type = "webhook"
-url = "https://discord.com/api/webhooks/..."
-template = "discord"
-
-[sinks.script]
-type = "exec"
-command = ["~/bin/on-slot.sh"]   # gets the event JSON on stdin
-```
-
-Book straight from an event:
-
-```bash
-booksy watch check --format jsonl | jq -r '.data | "\(.business_id) \(.variant_id) \(.earliest.start)"' |
-  while read b v at; do booksy book "$b" --service "$v" --at "$at"; done
-```
-
-## command surface
-
-| command | what it does |
-|---|---|
-| `search [query] --near/--geo --category --sort` | find businesses |
-| `category list`, `place resolve TEXT` | category ids, what `--near` resolves to |
-| `business show / services / staff / hours / reviews / open` | inspect a business |
-| `slots BUSINESS --service ...` | open start times (`--when --days --between --weekdays --before --staff --first`) |
-| `earliest TREATMENT --near PLACE --when ...` | earliest open slots for one kind of service across nearby businesses |
-| `treatment search TEXT` | Booksy's shared catalogue: how one service is matched across businesses |
-| `book BUSINESS --service ... --at TIME \| --first` | book, with confirmation (`--dry-run`, `--yes`, `--note`) |
-| `appointment list / show / cancel / reschedule` | your appointments |
-| `me show / reviews`, `bookmark list / add / remove` | your account |
-| `watch add slots / list / remove / check / run / events / service` | cancellation alerts |
-| `sink list / test` | notification targets |
-| `auth login / status / logout`, `profile list / use / remove` | logins, several accounts or countries |
-| `config path / list / get / set / unset`, `doctor`, `skills list / get` | housekeeping |
-
-Global flags: `--profile`, `--country` (es, us, pl, gb, ...; default es), `--format json|jsonl|pretty|toon`, `--no-color`, `--error-format text|json`, `--no-input`, `--debug`.
-
-Anything that changes your account (`book`, `appointment cancel/reschedule`) shows what it will do and asks first. Without a terminal it refuses unless you pass `--yes`.
-
-## exit codes
-
-`0` ok, `1` generic, `2` usage, `3` auth, `4` not found, `5` blocked or rate limited, `6` network, `7` Booksy changed its API (the error prints a prefilled issue link), `130` interrupted.
-
-## more
-
-- [docs/cli-spec.md](docs/cli-spec.md): the full spec, including every endpoint used
-- [CONTEXT.md](CONTEXT.md): vocabulary
-- `booksy skills get booksy-usage`: a guide for agents and scripts
-
-The structure, output layer and scheduler integration follow [wallapop-cli](https://github.com/Microck/wallapop-cli) and [vinted-cli](https://github.com/Microck/vinted-cli) (MIT).
+MIT. The structure, output layer and scheduler integration follow [wallapop-cli](https://github.com/Microck/wallapop-cli) and [vinted-cli](https://github.com/Microck/vinted-cli) by Microck (MIT).

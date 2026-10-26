@@ -1,0 +1,67 @@
+# Book, reschedule and cancel
+
+These need a [login](auth.md), except `book --dry-run`.
+
+## Book
+
+```bash
+booksy book 3349 --service 273164 --at 2026-11-05T18:00 --dry-run --format pretty
+booksy book 3349 --service 273164 --at 2026-11-05T18:00
+booksy book 3349 --service 273164 --first --when "mon-fri 16:00-close" --when sat
+booksy book 3349 --service 273164 --staff Javier --at 2026-11-05T18:00 --note "primera vez"
+```
+
+Pick the time with `--at` (business local time, `YYYY-MM-DDTHH:MM`) or `--first` for the earliest slot matching the [slot filters](finding-slots.md).
+
+`book` runs the same steps as booksy.com: it prepares a booking draft, sets the time, staff and note, gets Booksy's summary and price, shows them, and asks before the final step. `--dry-run` stops before booking; `--yes` skips the question. Without a terminal it refuses unless `--yes` is given, so a script cannot book by accident.
+
+```
+La Barberia Test • Calle Falsa 1, Madrid
+Thu, Nov 5 • 6:00 PM
+  Corte de pelo · 17,00 € · 6:00 PM - 6:25 PM · Empleado: Javier
+total 17,00 €
+pay at the business: 17.00
+```
+
+A time that is not open fails without booking (exit 2, reason `slot_unavailable`).
+
+## Prepayments and no-show protection
+
+Some businesses ask for money up front (a prepayment), and some turn on Booksy's **no-show protection**: you still pay at the business, but Booksy wants a card on file to charge a fee if you cancel late or do not show up. Businesses can switch it on at any time.
+
+Both need a card, and card entry only exists as Stripe's form on booksy.com and in the app. The CLI never handles cards. So when Booksy reports a prepayment or a cancellation fee, `book` stops before booking and says why (exit 2, reason `card_required`):
+
+```
+booksy: La Barberia Test uses no-show protection: you pay 11.00 at the business, but booksy needs a card
+on file to guarantee a 11.00 fee for late cancellations, and only booksy.com or the app can take it.
+```
+
+Book that one on booksy.com or in the app. `--dry-run` still shows the amounts, so you can see it coming.
+
+## Your appointments
+
+```bash
+booksy appointment list --upcoming --format pretty
+booksy appointment list --past --limit 0
+booksy appointment show 123456789
+```
+
+Statuses: `confirmed`, `cancelled`, `finished`, `no_show`, `awaiting_payment` (waiting for a card on booksy.com), `awaiting_confirmation` (the business has to accept), and a few rarer ones.
+
+## Cancel
+
+```bash
+booksy appointment cancel 123456789
+```
+
+It shows what it will cancel and asks (`--yes` skips). If Booksy does not allow it (too close to the time, by the business's policy), it says so instead. Mind the cancellation fee if the business has one.
+
+## Reschedule
+
+```bash
+booksy slots 3349 --service 273164 --from 2026-11-10 --days 3   # find a new time
+booksy appointment reschedule 123456789 --at 2026-11-11T18:00 --dry-run
+booksy appointment reschedule 123456789 --at 2026-11-11T18:00
+```
+
+It keeps the service and staff and moves the time, through the same summary and question as `book`.

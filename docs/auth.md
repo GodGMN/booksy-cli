@@ -1,0 +1,50 @@
+# Log in
+
+Searching, checking slots and watches need no login. Booking, appointments, bookmarks and `me` do.
+
+booksy.com keeps your login in a cookie named `identity-<country>` (`identity-es` in Spain). It lasts about six months and Booksy does not rotate it. The CLI imports that cookie instead of asking for your password, so email, Google, Apple and Facebook accounts all work the same way.
+
+## Import your login
+
+1. Log in at [booksy.com](https://booksy.com) in your browser.
+2. Export the cookies for booksy.com, for example with the Cookie-Editor extension (Export → JSON), and save them to a file.
+3. Import:
+
+```bash
+booksy auth login --cookies ~/Downloads/booksy-cookies.json
+booksy auth status --check
+rm ~/Downloads/booksy-cookies.json
+```
+
+Also accepted: a Netscape `cookies.txt`, EditThisCookie JSON, a copied `Cookie:` header, or the bare `identity-es` value (`booksy auth login` prompts for it, or pipe it with `--cookies -`). Only booksy.com cookies are read, so exporting every site is harmless.
+
+The CLI checks the login with Booksy, then saves it to `credentials.toml` with mode 0600. It never goes into `config.toml`. Your account's location becomes the default centre for searches.
+
+Do not paste the cookie value into chats, issues or AI assistants: it works like your password until it expires.
+
+## Expiry
+
+`booksy auth status` and `booksy doctor` warn two weeks before the cookie expires. Then repeat the import. `booksy auth status --check` asks Booksy whether the login still works.
+
+## Log out
+
+```bash
+booksy auth logout
+```
+
+This forgets the saved login on this machine. Your booksy.com session in the browser is unaffected.
+
+## Several accounts or countries
+
+Each profile has its own login and country:
+
+```bash
+booksy auth login --cookies pl-cookies.json --country pl --profile poland
+booksy profile list
+booksy search fryzjer --profile poland
+booksy profile use poland     # make it the default
+```
+
+## CI and scripts
+
+Set `BOOKSY_ACCESS_TOKEN` to the cookie value; nothing is written to disk and it overrides any saved login.

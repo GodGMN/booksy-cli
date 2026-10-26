@@ -45,7 +45,7 @@ open/close (or an empty side) mean the business's opening and closing time.
 
 ```sh
 booksy treatment search barba                    # catalogue ids
-booksy earliest --treatment 71 --near "Xàtiva" --when "mon-fri 16:00-close" --when sat
+booksy earliest --treatment 71 --near "Valencia" --when "mon-fri 16:00-close" --when sat
 ```
 
 Service names are each business's own, so `earliest` matches by catalogue

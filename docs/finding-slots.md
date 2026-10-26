@@ -1,0 +1,87 @@
+# Find businesses and open slots
+
+None of this needs a login.
+
+## Find a business
+
+```bash
+booksy search barberia --near "Valencia" --format pretty
+booksy search "corte de pelo" --geo 40.4168,-3.7038 --sort distance --limit 50
+booksy search --category 45 --near "Plaza Mayor, Madrid"   # booksy category list
+booksy place resolve "Calle Mayor 1, Madrid"               # what --near searches around
+```
+
+Without `--near` or `--geo`, searches centre on your account's location (after login), else the whole country.
+
+## Look at one
+
+Every `business` command takes the numeric id or the booksy.com URL:
+
+```bash
+booksy business show 3349 --format pretty
+booksy business services 3349 --format pretty   # VARIANT ids for --service
+booksy business staff 3349                      # ids and names for --staff
+booksy business hours 3349
+booksy business reviews 3349 --limit 5 --format pretty
+```
+
+A service can have several **variants** (lengths or prices). Bookings and slot queries are always for a variant. `--service` accepts:
+
+- a variant id (`273164`)
+- a service id, if that service has one variant
+- part of the service name (`"corte de pelo"`); an ambiguous name fails and lists the variant ids
+
+## Open slots at one business
+
+```bash
+booksy slots 3349 --service "corte de pelo" --format pretty
+booksy slots 3349 --service 273164 --staff Javier --days 14
+booksy slots 3349 --service 273164 --first          # just the earliest
+```
+
+| flag | meaning |
+|---|---|
+| `--from 2026-11-02` | first day to look at (default today) |
+| `--days 14` | how far ahead (default 7; businesses cap it, from one to a few months) |
+| `--when ...` | your schedule, below |
+| `--between 17:00-20:00` | one time window for every day |
+| `--weekdays mon,sat` or `1-5` | only these days |
+| `--before 2026-11-07T12:00` | only slots starting earlier |
+| `--staff NAME\|ID` | only that person (default anyone) |
+
+All filters given must hold.
+
+## Your schedule: `--when`
+
+Give one `--when` per rule. A slot is kept if it fits any of them.
+
+```bash
+booksy slots 3349 --service 273164 --days 30 \
+  --when "mon-fri 16:00-close" \
+  --when "sat" \
+  --when "2026-12-24 10:00-12:00" \
+  --when "2026-12-31 off"
+```
+
+| part | forms |
+|---|---|
+| days | `mon`..`sun`, `lun`..`dom`, `1`..`7` (1 is Monday); lists `mon,wed`; ranges `mon-fri`, `sat-mon`; `daily`, `weekdays`, `weekend`; dates `2026-12-24` or `2026-12-24,2026-12-26` |
+| time | `16:00-20:00`; `open` and `close` (or leaving a side empty, `18:00-`) mean the business's opening and closing; no time means all day; `off` excludes the days |
+
+A date rule replaces the weekday rules for that date. In the example, the 24th only offers 10:00 to 12:00 even though it is a weekday.
+
+`--when` works the same on `book --first`, `watch add slots` and `earliest`.
+
+## The earliest slot anywhere: `earliest`
+
+Businesses name services however they like ("Arreglo de barba", "Recorte de barba"), but Booksy files every service under one **treatment** of its shared catalogue ("Recorte de la barba", 71). `earliest` uses that to compare businesses:
+
+```bash
+booksy treatment search barba
+booksy earliest barba --near Valencia --when "mon-fri 16:00-close" --when sat --format pretty
+booksy earliest --treatment 71 --geo 39.47,-0.37 --days 21 --limit 5 --per-business 2
+```
+
+With text, it says on stderr which treatment it picked and lists alternatives; `--treatment ID` pins one. It checks the nearest `--businesses` (default 15) that offer it, a few at a time, and lists the earliest slots across all of them. Each row has `business_id`, `variant_id` and `start`, which are exactly what `booksy book` takes.
+
+`earliest` does not check fees; run `book --dry-run` on the one you pick (see [booking](booking.md)).
