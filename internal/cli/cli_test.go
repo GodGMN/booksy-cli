@@ -31,7 +31,7 @@ func newHarness(t *testing.T) *harness {
 	for k, v := range map[string]string{
 		"XDG_CONFIG_HOME": filepath.Join(dir, "config"), "XDG_DATA_HOME": filepath.Join(dir, "data"),
 		"XDG_STATE_HOME": filepath.Join(dir, "state"), "HOME": dir, "BOOKSY_API_BASE": srv.URL,
-		"BOOKSY_ACCESS_TOKEN": "", "BOOKSY_PROFILE": "", "BOOKSY_COUNTRY": "", "BOOKSY_CONFIG": "", "BOOKSY_PROXY": "",
+		"BOOKSY_ACCESS_TOKEN": "", "BOOKSY_API_KEY": "", "BOOKSY_WEB_BASE": "", "BOOKSY_PROFILE": "", "BOOKSY_COUNTRY": "", "BOOKSY_CONFIG": "", "BOOKSY_PROXY": "",
 	} {
 		t.Setenv(k, v)
 	}
@@ -286,5 +286,36 @@ func TestConfigAndDoctor(t *testing.T) {
 	}
 	if !strings.Contains(h.ok("skills", "get", "booksy-usage"), "--dry-run") {
 		t.Fatal("skill text")
+	}
+}
+
+func TestWebKeyRotation(t *testing.T) {
+	h := newHarness(t)
+	t.Setenv("BOOKSY_WEB_BASE", h.srv.URL)
+	h.srv.Key = "web-11111111-2222-3333-4444-555555555555"
+	r := h.run("", "category", "list")
+	if r.code != 0 || !strings.Contains(r.stderr, "web api key (built-in) was refused") {
+		t.Fatalf("should recover: %d %s", r.code, r.stderr)
+	}
+	cached, err := os.ReadFile(filepath.Join(h.dir, "data", "booksy-cli", "web-api-key"))
+	if err != nil || strings.TrimSpace(string(cached)) != h.srv.Key {
+		t.Fatalf("key not cached: %q %v", cached, err)
+	}
+	hits := h.srv.WebHits
+	r = h.run("", "category", "list")
+	if r.code != 0 || h.srv.WebHits != hits || r.stderr != "" {
+		t.Fatalf("the cached key should be used without rediscovery: %d hits %d->%d %s", r.code, hits, h.srv.WebHits, r.stderr)
+	}
+	checks := decode[[]Check](t, h.ok("doctor"))
+	for _, c := range checks {
+		if c.Name == "web api key" && !strings.HasPrefix(c.Detail, "rediscovered") {
+			t.Fatalf("doctor: %+v", c)
+		}
+	}
+	// booksy.com unreachable for discovery: exit 7, not 3.
+	h.srv.Key = "web-99999999-2222-3333-4444-555555555555"
+	t.Setenv("BOOKSY_WEB_BASE", "http://127.0.0.1:1")
+	if r := h.run("", "category", "list"); r.code != 7 {
+		t.Fatalf("unrecoverable key should exit 7: %d %s", r.code, r.stderr)
 	}
 }

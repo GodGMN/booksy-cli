@@ -108,6 +108,7 @@ func (a *App) configCmd() *cobra.Command {
   country                       fallback country code (es, us, pl, ...)
   language                      Accept-Language, e.g. es-ES or en-US
   proxy                         http(s)/socks5(h) URL, no credentials
+  api_key                       override booksy.com's public web key (rarely needed)
   watch.interval                default watch interval, e.g. 15m
   profiles.NAME.country         a profile's country
   profiles.NAME.location.lat    default search centre (also .lng, .label)
@@ -251,6 +252,7 @@ func (a *App) doctorCmd() *cobra.Command {
 			} else {
 				add("api", "ok", fmt.Sprintf("%s.booksy.com answered in %s (%d categories)", a.Country, time.Since(start).Round(time.Millisecond), len(cats)))
 			}
+			add("web api key", "ok", a.keySource)
 			st := a.status()
 			switch {
 			case !st.LoggedIn:

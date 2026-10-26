@@ -31,6 +31,8 @@ type Paths struct {
 	CredentialsFile string
 	StateDB         string
 	StateDir        string
+	// APIKeyFile caches a web api key rediscovered from booksy.com.
+	APIKeyFile string
 }
 
 func DefaultPaths() Paths {
@@ -40,6 +42,7 @@ func DefaultPaths() Paths {
 		CredentialsFile: filepath.Join(xdg.ConfigHome, appDir, "credentials.toml"),
 		StateDB:         filepath.Join(xdg.DataHome, appDir, "state.db"),
 		StateDir:        filepath.Join(xdg.StateHome, appDir),
+		APIKeyFile:      filepath.Join(xdg.DataHome, appDir, "web-api-key"),
 	}
 	if v := os.Getenv("BOOKSY_CONFIG"); v != "" {
 		p.ConfigFile = v
@@ -84,7 +87,10 @@ type Config struct {
 	// Proxy routes all Booksy traffic through http(s)/socks5(h) and never falls
 	// back to a direct connection. BOOKSY_PROXY overrides it. No credentials
 	// here: this file is world-readable.
-	Proxy    string                   `toml:"proxy,omitempty" json:"proxy,omitempty"`
+	Proxy string `toml:"proxy,omitempty" json:"proxy,omitempty"`
+	// APIKey overrides booksy.com's public web key. Normally unset: the CLI
+	// ships the current key and rediscovers it if Booksy changes it.
+	APIKey   string                   `toml:"api_key,omitempty" json:"api_key,omitempty"`
 	Profiles map[string]ProfileConfig `toml:"profiles,omitempty" json:"profiles,omitempty"`
 	Watch    WatchConfig              `toml:"watch,omitempty" json:"watch,omitempty"`
 	Sinks    map[string]SinkConfig    `toml:"sinks,omitempty" json:"sinks,omitempty"`

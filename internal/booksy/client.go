@@ -44,6 +44,13 @@ type Client struct {
 	UserAgent   string
 	// Debug, when set, receives one line per request with secrets redacted.
 	Debug io.Writer
+	// WebURL is booksy.com itself, where the web key is rediscovered. Tests
+	// point it at a fake.
+	WebURL string
+	// OnKeyRejected, when set, is called once when Booksy refuses APIKey. It
+	// returns a replacement (normally from DiscoverAPIKey) and the request is
+	// retried with it.
+	OnKeyRejected func(ctx context.Context) (string, error)
 }
 
 func New(country string) *Client {
@@ -102,18 +109,45 @@ func (c *Client) call(ctx context.Context, method, path string, query url.Values
 	if !strings.HasPrefix(path, "/core/") {
 		path = "/core/v2/customer_api" + path
 	}
+	var payload []byte
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = raw
+	}
+	err := c.once(ctx, method, path, query, payload, body != nil, out)
+	var e *Error
+	if !errors.As(err, &e) || !e.KeyRejected || c.OnKeyRejected == nil {
+		return err
+	}
+	// Recover at most once per client: a second refusal means the
+	// rediscovered key is wrong too, and looping would only hammer booksy.
+	hook := c.OnKeyRejected
+	c.OnKeyRejected = nil
+	key, derr := hook(ctx)
+	if derr != nil || key == "" || key == c.APIKey {
+		e.Msg += ". Rediscovering the current key from booksy.com did not help"
+		if derr != nil {
+			e.Msg += fmt.Sprintf(" (%v)", derr)
+		}
+		return e
+	}
+	c.debugf("web api key rejected; retrying with the one booksy.com serves now")
+	c.APIKey = key
+	return c.once(ctx, method, path, query, payload, body != nil, out)
+}
+
+func (c *Client) once(ctx context.Context, method, path string, query url.Values, payload []byte, hasBody bool, out any) error {
 	endpoint := method + " " + templatePath(path)
 	u := c.base() + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
 	var rd io.Reader
-	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-		rd = bytes.NewReader(raw)
+	if hasBody {
+		rd = bytes.NewReader(payload)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, rd)
 	if err != nil {
@@ -123,7 +157,7 @@ func (c *Client) call(ctx context.Context, method, path string, query url.Values
 	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Set("X-Api-Key", c.APIKey)
 	req.Header.Set("X-App-Version", appVersion)
-	if body != nil {
+	if hasBody {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if c.Language != "" {
@@ -178,6 +212,13 @@ func classify(status int, endpoint string, raw []byte) error {
 	var env apiErrors
 	isJSON := json.Unmarshal(raw, &env) == nil
 	desc := ""
+	if isJSON && len(env.Errors) > 0 && env.Errors[0].Field == "api_key" {
+		// The public web key, not the user's login. Exit 7 unless the caller
+		// recovers by rediscovering it.
+		e.Kind, e.KeyRejected, e.APICode = KindAPIChanged, true, env.Errors[0].Code
+		e.Msg = "booksy rejected the web api key the CLI sends (" + env.Errors[0].Description + "). booksy.com may have changed it"
+		return e
+	}
 	if isJSON && len(env.Errors) > 0 {
 		e.APICode = env.Errors[0].Code
 		desc = env.Errors[0].Description

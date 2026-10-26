@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -45,6 +46,8 @@ type App struct {
 	// tokenFromEnv is set when BOOKSY_ACCESS_TOKEN supplies the session, which
 	// is never written to disk.
 	tokenFromEnv bool
+	// keySource says where the web api key came from, for doctor and notices.
+	keySource string
 
 	flagProfile     string
 	flagCountry     string
@@ -183,11 +186,46 @@ func (a *App) setup(cmd *cobra.Command) error {
 	if a.flagDebug {
 		a.Client.Debug = a.Stderr
 	}
+	a.applyAPIKey()
 	if err := a.applyProxy(); err != nil && !underCommand(cmd, "config") {
 		return err
 	}
 	a.attachSession()
 	return nil
+}
+
+// applyAPIKey picks the public web key: BOOKSY_API_KEY, then config, then
+// one rediscovered earlier, then the built-in one. Whatever the source, a
+// refusal triggers one rediscovery from booksy.com, saved for next time.
+func (a *App) applyAPIKey() {
+	a.keySource = "built-in"
+	if raw, err := os.ReadFile(a.Paths.APIKeyFile); err == nil {
+		if k := strings.TrimSpace(string(raw)); k != "" {
+			a.Client.APIKey, a.keySource = k, "rediscovered ("+a.Paths.APIKeyFile+")"
+		}
+	}
+	if a.Cfg.APIKey != "" {
+		a.Client.APIKey, a.keySource = a.Cfg.APIKey, "config api_key"
+	}
+	if k := os.Getenv("BOOKSY_API_KEY"); k != "" {
+		a.Client.APIKey, a.keySource = k, "BOOKSY_API_KEY"
+	}
+	a.Client.WebURL = os.Getenv("BOOKSY_WEB_BASE")
+	a.Client.OnKeyRejected = func(ctx context.Context) (string, error) {
+		a.notice("the web api key (%s) was refused; looking up the current one on booksy.com", a.keySource)
+		k, err := a.Client.DiscoverAPIKey(ctx)
+		if err != nil {
+			return "", err
+		}
+		if err := os.MkdirAll(filepath.Dir(a.Paths.APIKeyFile), 0o700); err == nil {
+			_ = os.WriteFile(a.Paths.APIKeyFile, []byte(k+"\n"), 0o600)
+		}
+		if a.keySource == "config api_key" || a.keySource == "BOOKSY_API_KEY" {
+			a.notice("found a new key and saved it; remove the stale %s so it is used", a.keySource)
+		}
+		a.keySource = "rediscovered (" + a.Paths.APIKeyFile + ")"
+		return k, nil
+	}
 }
 
 // applyProxy routes all Booksy traffic through BOOKSY_PROXY, else the config's

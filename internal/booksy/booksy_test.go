@@ -232,3 +232,38 @@ func TestAppointments(t *testing.T) {
 		t.Errorf("cancel: %+v %v", ap, err)
 	}
 }
+
+func TestRejectedKeyIsNotAnAuthError(t *testing.T) {
+	c, srv := client(t)
+	srv.Key = "web-11111111-2222-3333-4444-555555555555"
+	_, err := c.Categories(context.Background())
+	var e *booksy.Error
+	if !errors.As(err, &e) || e.Kind != booksy.KindAPIChanged || !e.KeyRejected {
+		t.Fatalf("a refused web key must be api_changed, not auth: %+v", err)
+	}
+}
+
+func TestKeyRediscovery(t *testing.T) {
+	c, srv := client(t)
+	c.WebURL = srv.URL
+	srv.Key = "web-11111111-2222-3333-4444-555555555555"
+	got, err := c.DiscoverAPIKey(context.Background())
+	if err != nil || got != srv.Key {
+		t.Fatalf("discover: %q %v", got, err)
+	}
+
+	c.APIKey = booksy.WebAPIKey
+	calls := 0
+	c.OnKeyRejected = func(ctx context.Context) (string, error) {
+		calls++
+		return c.DiscoverAPIKey(ctx)
+	}
+	if _, err := c.Categories(context.Background()); err != nil || calls != 1 || c.APIKey != srv.Key {
+		t.Fatalf("recover: %v calls=%d key=%s", err, calls, c.APIKey)
+	}
+	// The hook runs once per client; a second rotation fails plainly.
+	srv.Key = "web-99999999-2222-3333-4444-555555555555"
+	if _, err := c.Categories(context.Background()); kind(err) != booksy.KindAPIChanged || calls != 1 {
+		t.Fatalf("second rotation: %v calls=%d", err, calls)
+	}
+}

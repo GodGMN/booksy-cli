@@ -20,14 +20,19 @@ const (
 	AppointUID  = 123456789
 	AppointVer  = 1700000000001
 	DraftPrefix = "draft-"
+	DefaultKey  = "web-e3d812bf-d7a2-445d-ab38-55589ae6a121"
 )
 
 // Server records calls and serves canned data. Slots is mutable so tests can
 // open and close times between checks.
 type Server struct {
 	*httptest.Server
-	mu        sync.Mutex
-	Slots     map[string][]string // date -> times
+	mu    sync.Mutex
+	Slots map[string][]string // date -> times
+	// Key is the web api key the fake accepts and serves from its fake
+	// booksy.com scripts. Change it to simulate Booksy rotating the key.
+	Key       string
+	WebHits   int
 	Calls     []string
 	Scheduled int
 	Cancelled int
@@ -39,6 +44,7 @@ func New() *Server {
 	s := &Server{
 		Slots:  map[string][]string{},
 		drafts: map[string]map[string]any{},
+		Key:    DefaultKey,
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
@@ -117,8 +123,29 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	path := strings.TrimPrefix(r.URL.Path, "/core/v2/customer_api")
 	s.Calls = append(s.Calls, r.Method+" "+path)
-	if r.Header.Get("X-Api-Key") == "" {
-		apiErr(w, 403, "required", "api key", "api_key")
+	// A fake booksy.com: the home page loads an entry script, which imports
+	// the chunk holding the key, like the real Nuxt bundle.
+	switch r.URL.Path {
+	case "/es-es/":
+		s.WebHits++
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `<html><head><script type="module" src="%s/assets/entry-1.js"></script><link rel="modulepreload" href="/assets/vendor-2.js"></head></html>`, s.URL)
+		return
+	case "/assets/entry-1.js":
+		s.WebHits++
+		fmt.Fprint(w, "import{a}from\"./vendor-2.js\";const l=()=>import(`./config-3.js`);")
+		return
+	case "/assets/vendor-2.js":
+		s.WebHits++
+		fmt.Fprint(w, "export const a=1;")
+		return
+	case "/assets/config-3.js":
+		s.WebHits++
+		fmt.Fprintf(w, "hn={DEVELOPMENT:`web-af3c6e80-8420-11e3-baa7-0800200c9a66`,PRODUCTION:`%s`}", s.Key)
+		return
+	}
+	if r.Header.Get("X-Api-Key") != s.Key {
+		apiErr(w, 403, "invalid", "Clave de API incorrecta.", "api_key")
 		return
 	}
 	var body map[string]any

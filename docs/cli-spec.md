@@ -114,6 +114,7 @@ Event JSON:
 | `$XDG_CONFIG_HOME/booksy-cli/config.toml` (or `BOOKSY_CONFIG`) | default_profile, country, language, proxy, profiles, watch, sinks. World-readable, never secrets. Unknown keys are errors. |
 | `$XDG_CONFIG_HOME/booksy-cli/credentials.toml` | per-profile access token, fingerprint, account name and email, import time, cookie expiry. 0600. |
 | `$XDG_DATA_HOME/booksy-cli/state.db` | SQLite: watches, seen slots, events. 0600. |
+| `$XDG_DATA_HOME/booksy-cli/web-api-key` | the web api key, only after Booksy changed it and it was rediscovered |
 | `$XDG_STATE_HOME/booksy-cli/` | scheduler logs |
 
 Proxy: `BOOKSY_PROXY` or `proxy` (http, https, socks5, socks5h). Never a direct fallback. Credentials only via the env var.
@@ -133,7 +134,7 @@ JSON on stdout, two-space indented. `jsonl` prints one element per line for list
 | 4 | not_found | 404, unknown watch, profile, service or staffer |
 | 5 | blocked | 429, or a non-JSON 403 (bot protection) |
 | 6 | network | connection failures |
-| 7 | api_changed | 405, non-JSON success, or an unexpected shape. Prints a prefilled issue link. |
+| 7 | api_changed | 405, non-JSON success, an unexpected shape, or a web api key that rediscovery could not fix. Prints a prefilled issue link. |
 | 130 | | interrupted |
 
 ## 7. Endpoints
@@ -161,6 +162,12 @@ All requests send `X-Api-Key: web-e3d812bf-d7a2-445d-ab38-55589ae6a121` (booksy.
 | | `POST /me/appointments/{uid}/action/` `{action:"cancel",_version,no_thumbs}` | yes |
 | bookmarks | `GET /me/bookmarks/`, `PUT` / `DELETE /me/bookmarks/{id}/` | yes |
 | my reviews | `GET /me/reviews/?reviews_page&reviews_per_page` | yes |
+
+### Web api key
+
+`X-Api-Key` is booksy.com's public web-client key, a constant in its bundle (`{DEVELOPMENT:`web-af3c…`,PRODUCTION:`web-e3d8…`}`). It is not a secret and not per user. Source order: `BOOKSY_API_KEY`, config `api_key`, a key rediscovered earlier (`$XDG_DATA_HOME/booksy-cli/web-api-key`), then the built-in one. `doctor` reports which one is in use.
+
+When Booksy answers `403 {"field":"api_key"}`, the CLI loads `https://booksy.com/{locale}/`, follows its scripts and the chunks they import (at most 600 files), takes the `PRODUCTION` key, saves it, and retries the request once. If that fails, the command exits 7 (api_changed), never 3: the user's login is not the problem.
 
 Draft `meta` is `{app_version:"3.0", platform:"web", device_type:"Desktop", booking_source:"Business_Details"}`.
 

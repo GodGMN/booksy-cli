@@ -63,6 +63,8 @@ type Error struct {
 	Body      string
 	Msg       string
 	Retryable bool
+	// KeyRejected marks a refusal of the public web API key (not the login).
+	KeyRejected bool
 }
 
 func (e *Error) Error() string { return e.Msg }

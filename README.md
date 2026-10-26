@@ -6,6 +6,8 @@
 
 It talks to Booksy's unofficial customer web API, the same one booksy.com and its booking widget use. Nothing here is endorsed by Booksy, and the API can change without notice.
 
+The `X-Api-Key` in the code and docs is booksy.com's public web-client key, shipped to every browser; it is not a secret. If Booksy ever changes it, the CLI finds the new one on booksy.com by itself and saves it.
+
 ## why
 
 The barber you want is booked out for three weeks, but people cancel all the time. `booksy watch` checks the calendar for you and pings your phone the moment a slot you'd take opens, and `booksy book` grabs it in one command.
