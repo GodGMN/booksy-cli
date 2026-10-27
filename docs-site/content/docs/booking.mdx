@@ -32,14 +32,16 @@ A time that is not open fails without booking (exit 2, reason `slot_unavailable`
 
 Some businesses ask for money up front (a prepayment), and some turn on Booksy's **no-show protection**: you still pay at the business, but Booksy wants a card on file to charge a fee if you cancel late or do not show up. Businesses can switch it on at any time.
 
-Both need a card, and card entry only exists as Stripe's form on booksy.com and in the app. The CLI never handles cards. So when Booksy reports a prepayment or a cancellation fee, `book` stops before booking and says why (exit 2, reason `card_required`):
+**No-show protection works** when the account has a saved card. Add one once on booksy.com (Account, Payments); the CLI never sees card numbers. `book` then guarantees the fee with your default card, the same way booksy.com does: nothing is charged now, only if you cancel late or do not show up. The summary names the card before you confirm:
 
 ```
-booksy: La Barberia Test uses no-show protection: you pay 11.00 at the business, but booksy needs a card
-on file to guarantee a 11.00 fee for late cancellations, and only booksy.com or the app can take it.
+cancellation fee: 11.00 if you cancel late or do not show up
+guaranteed with visa ··4242 (nothing is charged now)
 ```
 
-Book that one on booksy.com or in the app. `--dry-run` still shows the amounts, so you can see it coming.
+With no saved card, `book` stops before booking (exit 2, reason `card_required`) and tells you to add one. Moving a booking that has a fee (`appointment reschedule`) is not supported yet; do that on booksy.com or in the app.
+
+**Prepayments** still need booksy.com or the app: paying goes through Stripe's card form, so `book` stops before booking (exit 2, reason `card_required`). `--dry-run` shows the amounts either way, so you can see them coming.
 
 ## Your appointments
 
@@ -49,7 +51,7 @@ booksy appointment list --past --limit 0
 booksy appointment show 123456789
 ```
 
-Statuses: `confirmed`, `cancelled`, `finished`, `no_show`, `awaiting_payment` (waiting for a card on booksy.com), `awaiting_confirmation` (the business has to accept), and a few rarer ones.
+Statuses: `confirmed`, `cancelled`, `finished`, `no_show`, `awaiting_payment` (waiting for a prepayment or a card on booksy.com), `awaiting_confirmation` (the business has to accept), and a few rarer ones.
 
 ## Cancel
 

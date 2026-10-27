@@ -73,7 +73,7 @@ Full docs: **https://booksy.gimeno.dev**
 
 - **Unofficial.** booksy-cli uses Booksy's customer web API, the one booksy.com and its booking widget use. It is not made or endorsed by Booksy, and Booksy can change that API at any time; the CLI then exits with code 7 and links a prefilled issue.
 - **Your login stays local.** It is imported from your browser's cookies, checked with Booksy, and stored in a file only you can read. Nothing is sent anywhere but Booksy.
-- **Cards are never handled.** Businesses that require a prepayment or use Booksy's no-show protection need a card on booksy.com or in the app; `book` stops and tells you so instead of leaving a half-made booking.
+- **Card numbers are never handled.** For Booksy's no-show protection, `book` guarantees the fee with the card already saved on your account, as booksy.com does. Prepayments still have to be paid on booksy.com or in the app; `book` stops and tells you so instead of leaving a half-made booking.
 - **Nothing happens by surprise.** Booking, rescheduling and cancelling show a summary and ask first. Without a terminal they refuse unless you pass `--yes`.
 - **Not a secret.** The `X-Api-Key` in the code is booksy.com's public web-client key that every browser receives. If Booksy changes it, the CLI picks up the new one from booksy.com by itself.
 - **Be gentle.** Watches check every 15 minutes by default (2 minutes at the fastest), and `earliest` queries a few businesses at a time.

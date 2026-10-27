@@ -98,10 +98,13 @@ Result: `{treatment, from, to, businesses_checked, results: [{date, time, start,
 2. Ensure the Profile has a Fingerprint (minted once and saved).
 3. `POST drafts/create`, then `change_staffer` if a staffer was asked for and not assigned, then `change_timeslot` (an unavailable time is exit 2), then `add_customer_note`, then `GET confirmation`.
 4. `--dry-run` prints `{booked:false, dry_run:true, draft, summary}` and stops.
-5. With a login, `POST me/payments/calc/ {draft_id}` prices the draft, as booksy.com's review screen does; the result is `payment {prepayment, cancellation_fee, to_pay_later}`. Outside `--dry-run`, a prepayment or a cancellation fee above 0 is refused (exit 2) before anything is booked. `prepayment_total` and `cancellation_fee_total` are always decimal strings (`"0.00"` when none); a missing or unreadable one is exit 7 and nothing is booked, since the card check cannot be made. Both need a card: a prepayment to pay it, a cancellation fee (Booksy's no-show protection) as a guarantee, even though the service is paid at the business. Without a card, Booksy keeps the appointment in status `O` (awaiting payment) and later cancels it, as seen live on 2026-10-26. Card entry is Stripe's form on booksy.com, which the CLI does not handle.
+5. With a login, `POST me/payments/calc/ {draft_id}` prices the draft, as booksy.com's review screen does; the result is `payment {prepayment, cancellation_fee, to_pay_later}`. `prepayment_total` and `cancellation_fee_total` are always decimal strings (`"0.00"` when none); a missing or unreadable one is exit 7 and nothing is booked, since the card check cannot be made.
+   - A prepayment above 0 is refused outside `--dry-run` (exit 2, reason `card_required`): paying it needs Stripe's card form.
+   - A cancellation fee above 0 (Booksy's no-show protection; the service is still paid at the business) needs a saved card as a guarantee. `GET me/payment_methods/?page=1&per_page=99` lists the cards; the default active, confirmed `credit_card` is used (else the first). It goes into the result as `card {id, brand, last4, default}`, also on `--dry-run`. With no card, a real booking is refused (exit 2, reason `card_required`) and `--dry-run` warns. `appointment reschedule` with a fee is refused (exit 2, `card_required`): moving a guaranteed booking is not mapped yet.
 5b. Interactive: the summary goes to stderr and `Book this? [y/N]` is asked. Non-interactive without `--yes` is exit 2. Nothing is booked in either refusal.
-6. `POST drafts/{id}/schedule`, then `GET me/appointments/{core_id}/`. Prints `{booked:true, draft, summary, appointment}`.
-7. If an appointment still comes back as `awaiting_payment` (Booksy `O`), the CLI warns on stderr and points to booksy.com or `appointment cancel`. The CLI never handles cards.
+6. Without a fee: `POST drafts/{id}/schedule`, then `GET me/appointments/{core_id}/`. Prints `{booked:true, draft, summary, payment, appointment}`.
+6b. With a fee: `schedule` cannot attach a card (the appointment stays in status `O` and Booksy cancels it, seen live on 2026-10-26), so the booking goes through `POST me/appointments/business/{business_id}/` as booksy.com does, with the draft's validated time, staffer and variant and the card's `payment_method_id` (body in section 7). Booksy answers with the appointment in status `A` and `payment_info.deposit_id` set: the fee is authorized on the card, charged only for a late cancellation or a no-show. Prints `{booked:true, draft, summary, payment, card, appointment}`.
+7. If the appointment comes back as anything but `confirmed`, or a fee booking without a `deposit_id`, the CLI warns on stderr and points to booksy.com or `appointment cancel`. The CLI never sees card numbers, only brand and last digits.
 
 ### appointment
 
@@ -159,7 +162,7 @@ The HTTP client refuses redirects that change scheme or host, because Go would r
 
 ## 5. Output
 
-JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, reason, http_status, endpoint, suggested_commands, issue_url}`. `reason` is a stable cause when there is one: `card_required` (book refused for a prepayment or cancellation fee), `slot_unavailable` (time not open). Endpoints in errors have ids replaced by `{id}`. Issue links never include response bodies.
+JSON on stdout, two-space indented. `jsonl` prints one element per line for list results and one line otherwise. `pretty` uses tab-aligned tables. `toon` is TOON with the JSON field names. Errors go to stderr: text, or with `--error-format json` the envelope `{code, category, retryable, message, reason, http_status, endpoint, suggested_commands, issue_url}`. `reason` is a stable cause when there is one: `card_required` (book refused for a prepayment, or for a cancellation fee with no saved card), `slot_unavailable` (time not open). Endpoints in errors have ids replaced by `{id}`. Issue links never include response bodies.
 
 ## 6. Exit codes
 
@@ -197,6 +200,8 @@ All requests send `X-Api-Key: web-e3d812bf-d7a2-445d-ab38-55589ae6a121` (booksy.
 | | `POST /me/payments/calc/` `{draft_id}` | yes |
 | | `POST /drafts/{id}/schedule` `{meta}` | yes |
 | | `POST /drafts/edit_appointment` `{appointment_id,meta}` | yes |
+| | `GET /me/payment_methods/?page=1&per_page=99` (saved cards: `payment_method_id`, `card_type`, `card_last_digits`, `default`, `active`, `confirmed`) | yes |
+| | `POST /me/appointments/business/{id}/` `{subbookings:[{staffer_id,booked_from,service_variant:{mode:"variant",id},combo_children:[]}],is_cancellation_fee_preauth_flow:false,pre_auth_type:"control",customer_note,service_questions:[],bci_agreements:{web_communication_agreement:false,disclosure_obligation_agreement:false},ask_for_consent:false,payment_method,compatibilities:{prepayment:true}}` (fee bookings) | yes |
 | me | `GET /me` | yes |
 | appointments | `GET /me/bookings?bookings_page&bookings_per_page` | yes |
 | | `GET /me/appointments/{uid}/?no_thumbs=true&with_combos=1` | yes |
@@ -212,6 +217,6 @@ When Booksy answers `403 {"field":"api_key"}`, the CLI loads `https://booksy.com
 
 Draft `meta` is `{app_version:"3.0", platform:"web", device_type:"Desktop", booking_source:"Business_Details"}`.
 
-Verified live on 2026-10-26: everything above, including one real `schedule` (it returned an appointment in status `O` because that business requires a card on file). Not exercised live: `cancel` and bookmark `PUT`/`DELETE`. `edit_appointment` was verified with a dry run that stopped before `schedule`.
+Verified live on 2026-10-26: everything above, including one real `schedule` (it returned an appointment in status `O` because that business requires a card on file). Not exercised live: `cancel` and bookmark `PUT`/`DELETE`. `edit_appointment` was verified with a dry run that stopped before `schedule`. The card booking (`me/payment_methods/` and `me/appointments/business/{id}/`) was mapped on 2026-10-27 from a real booking made on booksy.com, which came back confirmed with the fee authorized on the saved card.
 
-Seen in the bundles but not used: `me/appointments/wait_list` (Booksy's own waitlist), `drafts/{id}/timeslots`, `drafts/{id}/set_first_available_time_slot`, `drafts/book_again`, payments, vouchers, stream chat.
+Seen in the bundles but not used: `me/appointments/wait_list` (Booksy's own waitlist), `drafts/{id}/timeslots`, `drafts/{id}/set_first_available_time_slot`, `drafts/book_again`, `me/appointments/business/{id}/dry_run/`, other payments (`make_payment`, which refuses fee-only bookings, `setup_intent`, `no_show_protection/cancellation_fees/rebind/`), vouchers, stream chat.

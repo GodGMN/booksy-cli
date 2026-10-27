@@ -17,6 +17,7 @@ import (
 //	POST drafts/{id}/schedule          turns the draft into an appointment (needs a token)
 //
 // Drafts are throwaway (status X) and cost nothing; only schedule books.
+// A booking with a cancellation fee is placed with BookWithCard instead.
 
 // Draft is a booking cart. Version must be echoed on every change.
 type Draft struct {
@@ -35,14 +36,16 @@ type Draft struct {
 }
 
 type DraftItem struct {
-	ID       string `json:"id"`
-	Service  string `json:"service"`
-	Variant  int    `json:"variant_id"`
-	Price    string `json:"price"`
-	From     string `json:"from"`
-	Till     string `json:"till"`
-	Staffer  string `json:"staffer,omitempty"`
-	Duration string `json:"duration,omitempty"`
+	ID      string `json:"id"`
+	Service string `json:"service"`
+	Variant int    `json:"variant_id"`
+	Price   string `json:"price"`
+	From    string `json:"from"`
+	Till    string `json:"till"`
+	Staffer string `json:"staffer,omitempty"`
+	// StafferID is the assigned staffer, 0 while Booksy has not picked one.
+	StafferID int    `json:"staffer_id,omitempty"`
+	Duration  string `json:"duration,omitempty"`
 }
 
 // Confirmation is the review screen's text, localized by Booksy.
@@ -82,6 +85,7 @@ type rawDraft struct {
 				} `json:"variant"`
 			} `json:"service"`
 			Staffer *struct {
+				ID   int    `json:"id"`
 				Name string `json:"name"`
 			} `json:"staffer"`
 		} `json:"subbookings"`
@@ -100,7 +104,7 @@ func (r rawDraft) draft() Draft {
 	for _, s := range a.Subbookings {
 		it := DraftItem{ID: s.ID, Service: s.Service.Name, Variant: s.Service.Variant.ID, Price: nbsp(s.Service.Price), From: s.BookedFrom, Till: s.BookedTill, Duration: s.Service.Variant.Duration}
 		if s.Staffer != nil {
-			it.Staffer = s.Staffer.Name
+			it.Staffer, it.StafferID = s.Staffer.Name, s.Staffer.ID
 		}
 		d.Items = append(d.Items, it)
 	}
@@ -246,8 +250,8 @@ func amount(s string) (float64, bool) {
 
 // PaymentCalc prices the draft, as booksy.com's review screen does before
 // schedule. A prepayment or a cancellation fee above zero means the booking
-// needs a card (to pay, or to guarantee the fee); without one Booksy keeps
-// it in status O and later cancels it.
+// needs a card (to pay, or to guarantee the fee); scheduled without one,
+// Booksy keeps it in status O and later cancels it.
 func (c *Client) PaymentCalc(ctx context.Context, d Draft) (Payment, error) {
 	if err := c.requireToken("POST /me/payments/calc/"); err != nil {
 		return Payment{}, err

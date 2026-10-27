@@ -162,8 +162,8 @@ func TestBookFlow(t *testing.T) {
 		t.Fatalf("a prepayment must be refused before schedule: %d %s", r.code, r.stderr)
 	}
 	h.srv.Prepayment, h.srv.CancellationFee = "0.00", "11.00"
-	if r := h.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); r.code != 2 || !strings.Contains(r.stderr, "no-show protection") || h.srv.Scheduled != 1 {
-		t.Fatalf("a cancellation fee must be refused before schedule: %d %s", r.code, r.stderr)
+	if r := h.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); r.code != 2 || !strings.Contains(r.stderr, "saved card") || h.srv.Scheduled != 1 {
+		t.Fatalf("a cancellation fee with no saved card must be refused before booking: %d %s", r.code, r.stderr)
 	}
 	dry := decode[BookingResult](t, h.ok("book", "3349", "--service", "273164", "--at", day+"T18:00", "--dry-run"))
 	if dry.Payment == nil || dry.Payment.CancellationFee != "11.00" || h.srv.Scheduled != 1 {
@@ -413,6 +413,35 @@ func TestBookRefusalReasons(t *testing.T) {
 	h.srv.CancellationFee = "11.00"
 	if got := reason("book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); got != "card_required" || h.srv.Scheduled != 0 {
 		t.Fatalf("%q scheduled=%d", got, h.srv.Scheduled)
+	}
+}
+
+func TestFeeBookingUsesSavedCard(t *testing.T) {
+	h := newHarness(t)
+	day := today(1)
+	h.srv.Slots[day] = []string{"18:00"}
+	h.srv.CancellationFee, h.srv.Card = "11.00", true
+	h.login()
+
+	dry := decode[BookingResult](t, h.ok("book", "3349", "--service", "273164", "--at", day+"T18:00", "--dry-run"))
+	if dry.Card == nil || dry.Card.Last4 != "4242" || h.srv.Scheduled != 0 || h.srv.CardBooking != nil {
+		t.Fatalf("dry run should name the card and book nothing: %+v", dry.Card)
+	}
+	res := decode[BookingResult](t, h.ok("book", "3349", "--service", "273164", "--staff", "Javier", "--at", day+"T18:00", "--note", "hola", "--yes"))
+	if !res.Booked || res.Appointment == nil || res.Appointment.Status != "confirmed" || res.Card == nil {
+		t.Fatalf("book: %+v", res)
+	}
+	b := h.srv.CardBooking
+	sub := b["subbookings"].([]any)[0].(map[string]any)
+	if b["payment_method"] != float64(fakebooksy.CardID) || b["customer_note"] != "hola" ||
+		sub["staffer_id"] != float64(fakebooksy.StafferID) || sub["booked_from"] != day+"T18:00" {
+		t.Fatalf("card booking body: %+v", b)
+	}
+	if calls := strings.Join(h.srv.CallLog(), "\n"); strings.Contains(calls, "/schedule") {
+		t.Fatalf("a fee booking must not go through drafts/schedule:\n%s", calls)
+	}
+	if out := h.ok("book", "3349", "--service", "273164", "--at", day+"T18:00", "--dry-run", "--format", "pretty"); !strings.Contains(out, "visa ··4242") {
+		t.Fatalf("pretty output should name the card:\n%s", out)
 	}
 }
 

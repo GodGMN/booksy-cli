@@ -86,8 +86,8 @@ var statusNames = map[string]string{
 	"R": "rejected",
 	"D": "declined",
 	"M": "modified",
-	// O: booked, but the business wants a card on file (no-show protection)
-	// or a prepayment, which only booksy.com's Stripe form can provide.
+	// O: booked, but awaiting a prepayment, or a card guarantee that
+	// drafts/schedule cannot attach (BookWithCard does).
 	"O": "awaiting_payment",
 	"V": "awaiting_account_verification",
 	"X": "unknown",

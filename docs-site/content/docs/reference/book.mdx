@@ -22,6 +22,11 @@ slot filters (--days, --between, --weekdays, --before, --staff).
 
 Booking needs a login (`booksy auth login`); --dry-run does not.
 
+A business with no-show protection gets its cancellation fee guaranteed by the
+default card saved on the account (add one on booksy.com); nothing is charged
+unless you cancel late or do not show up. Prepayments are refused: pay those on
+booksy.com or in the app.
+
 ```bash
 booksy book 3349 --service corte --at 2026-10-30T18:00
 booksy book 3349 --service 273164 --staff Javier --first --between 17:00-20:00 --dry-run

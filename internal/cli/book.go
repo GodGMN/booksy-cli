@@ -16,11 +16,13 @@ import (
 
 // BookingResult is the JSON contract of `book` and `appointment reschedule`.
 type BookingResult struct {
-	Booked      bool                `json:"booked"`
-	DryRun      bool                `json:"dry_run"`
-	Draft       booksy.Draft        `json:"draft"`
-	Summary     booksy.Confirmation `json:"summary"`
-	Payment     *booksy.Payment     `json:"payment,omitempty"`
+	Booked  bool                `json:"booked"`
+	DryRun  bool                `json:"dry_run"`
+	Draft   booksy.Draft        `json:"draft"`
+	Summary booksy.Confirmation `json:"summary"`
+	Payment *booksy.Payment     `json:"payment,omitempty"`
+	// Card guarantees the cancellation fee of a no-show protected booking.
+	Card        *booksy.Card        `json:"card,omitempty"`
 	Appointment *booksy.Appointment `json:"appointment,omitempty"`
 }
 
@@ -32,7 +34,7 @@ func (r BookingResult) Pretty(w io.Writer, color bool) {
 		fmt.Fprintln(w, bold("Dry run: nothing was booked.", color))
 	}
 	summaryPretty(w, r.Summary, color)
-	paymentPretty(w, r.Payment)
+	paymentPretty(w, r.Payment, r.Card)
 	if r.Appointment != nil {
 		fmt.Fprintf(w, "appointment %d · %s\n", r.Appointment.UID, r.Appointment.Status)
 	}
@@ -52,7 +54,7 @@ func summaryPretty(w io.Writer, s booksy.Confirmation, color bool) {
 	}
 }
 
-func paymentPretty(w io.Writer, p *booksy.Payment) {
+func paymentPretty(w io.Writer, p *booksy.Payment, card *booksy.Card) {
 	if p == nil {
 		return
 	}
@@ -64,6 +66,9 @@ func paymentPretty(w io.Writer, p *booksy.Payment) {
 	}
 	if p.HasCancellationFee() {
 		fmt.Fprintf(w, "cancellation fee: %s if you cancel late or do not show up\n", p.CancellationFee)
+		if card != nil {
+			fmt.Fprintf(w, "guaranteed with %s (nothing is charged now)\n", card)
+		}
 	}
 }
 
@@ -76,7 +81,8 @@ func bold(s string, color bool) string {
 
 // bookingFlow carries a draft from creation to schedule, shared by book and
 // reschedule so both confirm the same way.
-func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, note string, dryRun, yes bool, verb string) error {
+// reschedule is true when d edits an existing appointment.
+func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, note string, dryRun, yes, reschedule bool, verb string) error {
 	var err error
 	if d, err = a.Client.ChangeTimeslot(ctx, d, date, clock); err != nil {
 		return err
@@ -98,20 +104,32 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 			return err
 		}
 		res.Payment = &pay
-		if !dryRun {
-			if pay.NeedsPrepayment() {
-				e := booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
+		if !dryRun && pay.NeedsPrepayment() {
+			e := booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
+			e.Reason = "card_required"
+			return e
+		}
+		// No-show protection: the service is paid at the business, but the
+		// booking needs a saved card to guarantee the fee. Booksy authorizes
+		// the fee on it and charges only for a late cancellation or no-show.
+		if pay.HasCancellationFee() && !pay.NeedsPrepayment() {
+			if reschedule && !dryRun {
+				e := booksy.Usage("%s uses no-show protection, and moving a booking with a cancellation fee is not supported here yet. Reschedule it on booksy.com or in the app", d.Business)
 				e.Reason = "card_required"
 				return e
 			}
-			// No-show protection: the service is still paid in person, but
-			// Booksy holds the booking as awaiting payment until a card is
-			// registered as a guarantee, and cancels it if none comes. Card
-			// entry is Stripe's form on booksy.com, so stop before booking.
-			if pay.HasCancellationFee() {
-				e := booksy.Usage("%s uses no-show protection: you pay %s at the business, but booksy needs a card on file to guarantee a %s fee for late cancellations, and only booksy.com or the app can take it. Book this one there; a booking made here would stay unconfirmed and be cancelled", d.Business, pay.ToPayLater, pay.CancellationFee)
+			cards, err := a.Client.Cards(ctx)
+			if err != nil {
+				return err
+			}
+			if card, ok := booksy.PickCard(cards); ok {
+				res.Card = &card
+			} else if !dryRun {
+				e := booksy.Usage("%s uses no-show protection: booksy needs a saved card to guarantee a %s fee for late cancellations or no-shows, and this account has none. Add one on booksy.com (Account, Payments) and run this again", d.Business, pay.CancellationFee)
 				e.Reason = "card_required"
 				return e
+			} else {
+				a.notice("this business needs a saved card to guarantee its %s cancellation fee, and this account has none; booking will fail until one is added on booksy.com", pay.CancellationFee)
 			}
 		}
 	}
@@ -120,10 +138,21 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 	}
 	if a.Interactive && !yes {
 		summaryPretty(a.Stderr, sum, false)
-		paymentPretty(a.Stderr, res.Payment)
+		paymentPretty(a.Stderr, res.Payment, res.Card)
 	}
 	if err := a.confirm(yes, verb+"?"); err != nil {
 		return err
+	}
+	if res.Card != nil {
+		ap, guaranteed, err := a.Client.BookWithCard(ctx, d, note, *res.Card)
+		if err != nil {
+			return err
+		}
+		res.Booked, res.Appointment = true, &ap
+		if ap.Status != "confirmed" || !guaranteed {
+			a.notice("booked, but booksy did not confirm the card guarantee (status %s). Check it on booksy.com (My appointments), or cancel with `booksy appointment cancel %d`", ap.Status, ap.UID)
+		}
+		return a.Printer.Print(res)
 	}
 	done, err := a.Client.Schedule(ctx, d)
 	if err != nil {
@@ -157,7 +186,12 @@ to skip the prompt, or --dry-run to stop just before booking.
 Pick the time with --at, or --first for the earliest slot that matches the
 slot filters (--days, --between, --weekdays, --before, --staff).
 
-Booking needs a login (` + "`booksy auth login`" + `); --dry-run does not.`,
+Booking needs a login (` + "`booksy auth login`" + `); --dry-run does not.
+
+A business with no-show protection gets its cancellation fee guaranteed by the
+default card saved on the account (add one on booksy.com); nothing is charged
+unless you cancel late or do not show up. Prepayments are refused: pay those on
+booksy.com or in the app.`,
 		Example: `  booksy book 3349 --service corte --at 2026-10-30T18:00
   booksy book 3349 --service 273164 --staff Javier --first --between 17:00-20:00 --dry-run
   booksy book 3349 --service corte --at "2026-10-30 18:00" --note "primera vez" --yes`,
@@ -209,7 +243,7 @@ Booking needs a login (` + "`booksy auth login`" + `); --dry-run does not.`,
 					return err
 				}
 			}
-			return a.finishBooking(ctx, d, date, clock, note, dryRun, yes, "Book this")
+			return a.finishBooking(ctx, d, date, clock, note, dryRun, yes, false, "Book this")
 		},
 	}
 	sf.bind(cmd, 14)
@@ -400,7 +434,7 @@ staffer. Check times first with ` + "`booksy slots`" + `. Asks first, or --yes.`
 			if err != nil {
 				return err
 			}
-			return a.finishBooking(ctx, d, date, clock, note, dryRun, ryes, "Move it")
+			return a.finishBooking(ctx, d, date, clock, note, dryRun, ryes, true, "Move it")
 		},
 	}
 	reschedule.Flags().StringVar(&at, "at", "", "new start time, 2026-12-05T18:00 (required)")

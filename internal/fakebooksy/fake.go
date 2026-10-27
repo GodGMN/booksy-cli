@@ -19,6 +19,7 @@ const (
 	StafferID   = 131159
 	AppointUID  = 123456789
 	AppointVer  = 1700000000001
+	CardID      = 9001
 	DraftPrefix = "draft-"
 	DefaultKey  = "web-e3d812bf-d7a2-445d-ab38-55589ae6a121"
 
@@ -45,11 +46,15 @@ type Server struct {
 	Prepayment       string
 	CancellationFee  string
 	LastBookedStatus string
-	Calls            []string
-	Scheduled        int
-	Cancelled        int
-	drafts           map[string]map[string]any
-	nextDraft        int
+	// Card puts one saved card on the account; CardBooking is the body of
+	// the last me/appointments/business booking.
+	Card        bool
+	CardBooking map[string]any
+	Calls       []string
+	Scheduled   int
+	Cancelled   int
+	drafts      map[string]map[string]any
+	nextDraft   int
 }
 
 func New() *Server {
@@ -325,6 +330,38 @@ func (s *Server) serveMe(w http.ResponseWriter, r *http.Request, path string, bo
 		}
 		s.Cancelled++
 		write(w, 200, map[string]any{"appointment": appointment("C")})
+	case r.Method == "GET" && path == "/me/payment_methods/":
+		methods := []any{}
+		if s.Card {
+			methods = append(methods, map[string]any{"payment_method_id": CardID, "confirmed": true, "active": true, "default": true,
+				"method_type": "credit_card", "card_type": "visa", "card_last_digits": "4242", "provider": "stripe", "tokenized_pm_id": "00000000-0000-0000-0000-000000000000"})
+		}
+		write(w, 200, map[string]any{"count": len(methods), "page": 1, "per_page": 99, "payment_methods": methods})
+	case r.Method == "POST" && path == fmt.Sprintf("/me/appointments/business/%d/", BusinessID):
+		var from string
+		if subs, _ := body["subbookings"].([]any); len(subs) == 1 {
+			sub, _ := subs[0].(map[string]any)
+			from, _ = sub["booked_from"].(string)
+		}
+		date, clock, _ := strings.Cut(from, "T")
+		if !contains(s.Slots[date], clock) {
+			apiErr(w, 400, "validation", "Problema con la reserva. Prueba de nuevo.", "booked_from")
+			return
+		}
+		s.CardBooking = body
+		// Like the real API: the fee needs the saved card's payment_method_id.
+		status := "A"
+		if body["payment_method"] != float64(CardID) {
+			status = "O"
+		}
+		s.Scheduled++
+		s.LastBookedStatus = status
+		a := appointment(status)
+		a["booked_from"] = from
+		if status == "A" {
+			a["payment_info"] = map[string]any{"deposit_id": 54000001, "deposit_info": map[string]any{"status_type": "authorized"}}
+		}
+		write(w, 201, map[string]any{"appointment": a})
 	case r.Method == "POST" && path == "/me/payments/calc/":
 		d, ok := s.drafts[fmt.Sprint(body["draft_id"])]
 		if !ok {
