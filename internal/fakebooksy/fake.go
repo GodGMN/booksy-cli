@@ -45,11 +45,18 @@ type Server struct {
 	Prepayment       string
 	CancellationFee  string
 	LastBookedStatus string
-	Calls            []string
-	Scheduled        int
-	Cancelled        int
-	drafts           map[string]map[string]any
-	nextDraft        int
+	// Card gives the account one saved card. Like Booksy, a booking with a
+	// cancellation fee then starts awaiting payment and is confirmed on a
+	// later read, once the card is bound; CardBinds false keeps it waiting.
+	Card       bool
+	CardBinds  bool
+	apptStatus string
+	apptReads  int
+	Calls      []string
+	Scheduled  int
+	Cancelled  int
+	drafts     map[string]map[string]any
+	nextDraft  int
 }
 
 func New() *Server {
@@ -60,6 +67,7 @@ func New() *Server {
 		Key:             DefaultKey,
 		Prepayment:      "0.00",
 		CancellationFee: "0.00",
+		CardBinds:       true,
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
@@ -275,6 +283,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 				status = "O"
 			}
 			d["status"], d["core_id"] = status, AppointUID
+			s.apptStatus, s.apptReads = status, 0
 			s.Scheduled++
 			s.LastBookedStatus = status
 		default:
@@ -314,6 +323,13 @@ func (s *Server) serveMe(w http.ResponseWriter, r *http.Request, path string, bo
 		write(w, 200, map[string]any{"bookings": []any{appointment(status), past}, "bookings_count": 2})
 	case r.Method == "GET" && path == fmt.Sprintf("/me/appointments/%d/", AppointUID):
 		status := "A"
+		if s.apptStatus != "" {
+			s.apptReads++
+			if s.apptStatus == "O" && s.Card && s.CardBinds && s.Prepayment == "0.00" && s.apptReads > 1 {
+				s.apptStatus = "A"
+			}
+			status = s.apptStatus
+		}
 		if s.Cancelled > 0 {
 			status = "C"
 		}
@@ -334,6 +350,13 @@ func (s *Server) serveMe(w http.ResponseWriter, r *http.Request, path string, bo
 		d["priced"] = true
 		write(w, 200, map[string]any{"appointment": map[string]any{"status": "A"}, "appointment_payment": map[string]any{
 			"prepayment": s.Prepayment, "prepayment_total": s.Prepayment, "cancellation_fee": s.CancellationFee, "cancellation_fee_total": s.CancellationFee, "to_pay_later": "17.00"}})
+	case r.Method == "GET" && path == "/me/payments/payment_options/":
+		opts := []any{}
+		if s.Card {
+			opts = append(opts, map[string]any{"type": "card", "is_active": true, "is_selected": false, "title": "Mastercard",
+				"data": map[string]any{"id": "0b7c2f8e-1111-4222-8333-944455556666", "default": true, "provider_code": "stripe", "details": map[string]any{"brand": "mastercard", "last_digits": "4242"}}})
+		}
+		write(w, 200, map[string]any{"payment_options": opts})
 	case r.Method == "GET" && path == "/me/bookmarks/":
 		write(w, 200, map[string]any{"businesses": []any{business()}})
 	case (r.Method == "PUT" || r.Method == "DELETE") && path == fmt.Sprintf("/me/bookmarks/%d/", BusinessID):

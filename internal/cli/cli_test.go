@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GodGMN/booksy-cli/internal/booksy"
 	"github.com/GodGMN/booksy-cli/internal/fakebooksy"
 )
 
@@ -545,4 +546,46 @@ func TestLoginUsesTheConfiguredKey(t *testing.T) {
 	t.Setenv("BOOKSY_WEB_BASE", h2.srv.URL)
 	h2.srv.Key = "web-11111111-2222-3333-4444-555555555555"
 	h2.login()
+}
+
+func TestBookWithSavedCardWaitsForConfirmation(t *testing.T) {
+	old := booksy.ConfirmPoll
+	booksy.ConfirmPoll.Every, booksy.ConfirmPoll.For = 5*time.Millisecond, 30*time.Millisecond
+	t.Cleanup(func() { booksy.ConfirmPoll = old })
+	h := newHarness(t)
+	day := today(1)
+	h.srv.Slots[day] = []string{"18:00"}
+	h.srv.CancellationFee, h.srv.Card = "11.00", true
+	h.login()
+	dry := decode[BookingResult](t, h.ok("book", "3349", "--service", "273164", "--at", day+"T18:00", "--dry-run"))
+	if dry.Card == nil || dry.Card.Last4 != "4242" || h.srv.Scheduled != 0 {
+		t.Fatalf("dry run should name the card and not book: %+v", dry.Card)
+	}
+	res := decode[BookingResult](t, h.ok("book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"))
+	if !res.Booked || h.srv.Cancelled != 0 || res.Appointment == nil || res.Appointment.Status != "confirmed" {
+		t.Fatalf("booked=%v cancelled=%d appointment=%+v", res.Booked, h.srv.Cancelled, res.Appointment)
+	}
+
+	// The card never gets bound: the booking is undone, not left waiting.
+	h2 := newHarness(t)
+	h2.srv.Slots[day] = []string{"18:00"}
+	h2.srv.CancellationFee, h2.srv.Card, h2.srv.CardBinds = "11.00", true, false
+	h2.login()
+	r := h2.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes", "--error-format", "json")
+	env := decode[map[string]any](t, r.stderr[strings.LastIndex(r.stderr, "\n{")+1:])
+	if r.code != 2 || env["reason"] != "card_not_accepted" || h2.srv.Scheduled != 1 || h2.srv.Cancelled != 1 {
+		t.Fatalf("exit %d cancelled=%d: %s", r.code, h2.srv.Cancelled, r.stderr)
+	}
+}
+
+func TestPrepaymentStaysRefusedWithACard(t *testing.T) {
+	h := newHarness(t)
+	day := today(1)
+	h.srv.Slots[day] = []string{"18:00"}
+	h.srv.Prepayment, h.srv.Card = "5.00", true
+	h.login()
+	r := h.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes", "--error-format", "json")
+	if decode[map[string]any](t, r.stderr)["reason"] != "card_required" || h.srv.Scheduled != 0 {
+		t.Fatalf("%d %s", r.code, r.stderr)
+	}
 }

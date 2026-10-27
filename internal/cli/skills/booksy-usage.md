@@ -79,15 +79,20 @@ Failures to handle, both exit 2 with `--error-format json`:
 - `reason: "slot_unavailable"`: the time is not open. Re-run `booksy slots`
   and offer the user another time; do not guess times.
 - `reason: "card_required"`: the business asks for a prepayment, or uses
-  no-show protection (a fee for late cancellation or no-show). Either way
-  Booksy needs a card, which only booksy.com or the app can take. Nothing was
-  booked. Do not retry with other flags: tell the user to book that one on
-  booksy.com or in the app, quoting the amounts from the dry run.
+  no-show protection (a fee for late cancellation or no-show) and the account
+  has no saved card. Nothing was booked. Do not retry with other flags: tell
+  the user to add a card in the booksy app (Profile, Payment methods) or book
+  that one on booksy.com, quoting the amounts from the dry run.
+- `reason: "card_not_accepted"`: it was booked, but Booksy did not confirm
+  it with the saved card within a minute, so the CLI cancelled it again.
+  Tell the user to check the card in the app.
 
-Run `--dry-run` first: a non-zero `payment.prepayment` or
-`payment.cancellation_fee` predicts `card_required` before you ask the user
-to confirm. Businesses can turn no-show protection on at any time, so a
-business that booked fine before can start returning it.
+No-show protection with a saved card books normally: the dry run shows
+`payment.cancellation_fee` and `card` (the saved card that guarantees it),
+and `book` returns the appointment once Booksy confirms it. Tell the user
+about the fee when asking them to confirm. A non-zero `payment.prepayment`,
+or a fee with no `card`, predicts `card_required`. Businesses can turn
+no-show protection on at any time.
 
 ## Appointments
 
