@@ -1,6 +1,9 @@
-# Book, reschedule and cancel
+---
+title: Book, reschedule and cancel
+description: The booking flow, dry runs, prepayments and no-show protection, rescheduling and cancelling.
+---
 
-These need a [login](auth.md), except `book --dry-run`.
+These need a [login](/docs/auth), except `book --dry-run`.
 
 ## Book
 
@@ -11,7 +14,7 @@ booksy book 3349 --service 273164 --first --when "mon-fri 16:00-close" --when sa
 booksy book 3349 --service 273164 --staff Javier --at 2026-11-05T18:00 --note "primera vez"
 ```
 
-Pick the time with `--at` (business local time, `YYYY-MM-DDTHH:MM`) or `--first` for the earliest slot matching the [slot filters](finding-slots.md).
+Pick the time with `--at` (business local time, `YYYY-MM-DDTHH:MM`) or `--first` for the earliest slot matching the [slot filters](/docs/finding-slots).
 
 `book` runs the same steps as booksy.com: it prepares a booking draft, sets the time, staff and note, gets Booksy's summary and price, shows them, and asks before the final step. `--dry-run` stops before booking; `--yes` skips the question. Without a terminal it refuses unless `--yes` is given, so a script cannot book by accident.
 

@@ -1,4 +1,7 @@
-# Troubleshooting and exit codes
+---
+title: Troubleshooting and exit codes
+description: Exit codes and the common problems behind them.
+---
 
 Start with:
 
@@ -23,11 +26,11 @@ booksy <command> --debug      # one stderr line per request; tokens are never pr
 
 ## Common problems
 
-**"not logged in" or exit 3 after months of use.** The imported cookie expired (about six months). Log in on booksy.com and import again ([auth](auth.md)).
+**"not logged in" or exit 3 after months of use.** The imported cookie expired (about six months). Log in on booksy.com and import again ([auth](/docs/auth)).
 
 **"logged in to booksy es, not pl".** A profile's login is for one country. Drop `--country`, or log in for the other country under another `--profile`.
 
-**`book` refuses with "no-show protection" or "prepayment".** The business needs a card on file; book that one on booksy.com or in the app ([booking](booking.md)).
+**`book` refuses with "no-show protection" or "prepayment".** The business needs a card on file; book that one on booksy.com or in the app ([booking](/docs/booking)).
 
 **A slot from `slots` is "not available" when booking.** Someone took it in between; run `slots` again.
 

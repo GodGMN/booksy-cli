@@ -1,16 +1,5 @@
 # booksy-cli docs
 
-Guides, in the order you will probably need them:
+The guides and the command reference are published at **https://booksy.gimeno.dev**. Their sources are in [../docs-site/content/docs](../docs-site/content/docs).
 
-1. [Install and update](install.md)
-2. [Log in](auth.md)
-3. [Find businesses and open slots](finding-slots.md), including your schedule (`--when`) and the earliest slot across businesses
-4. [Book, reschedule and cancel](booking.md), and what no-show protection means
-5. [Watch for cancellations](watches.md) and get notified
-6. [Configuration, profiles and countries](configuration.md)
-7. [Scripts and AI agents](agents.md)
-8. [Troubleshooting and exit codes](troubleshooting.md)
-
-Reference: [cli-spec.md](cli-spec.md) is the full specification: every command, flag, file, exit code and Booksy endpoint. `booksy <command> --help` shows the same flags offline.
-
-Vocabulary (Business, Service, Variant, Treatment, Slot, Draft, ...) is in [../CONTEXT.md](../CONTEXT.md).
+This folder keeps the [specification](cli-spec.md): every command, flag, file, exit code and Booksy endpoint, for whoever changes the CLI. Vocabulary (Business, Service, Variant, Treatment, Slot, Draft, ...) is in [../CONTEXT.md](../CONTEXT.md).

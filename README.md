@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/inst
 booksy doctor
 ```
 
-Windows: download the zip from [releases](https://github.com/GodGMN/booksy-cli/releases). With Go: `go install github.com/GodGMN/booksy-cli/cmd/booksy@latest`. Update later with `booksy update`. More in [docs/install.md](docs/install.md).
+Windows: download the zip from [releases](https://github.com/GodGMN/booksy-cli/releases). With Go: `go install github.com/GodGMN/booksy-cli/cmd/booksy@latest`. Update later with `booksy update`. More in [the install guide](https://booksy.gimeno.dev/docs/install/).
 
 ## Quickstart
 
@@ -43,7 +43,7 @@ booksy business services 3349 --format pretty
 # when could you go?
 booksy slots 3349 --service "corte de pelo" --when "mon-fri 17:00-close" --when sat --format pretty
 
-# book it (after logging in: docs/auth.md)
+# book it (after logging in, see the docs)
 booksy book 3349 --service "corte de pelo" --first --when "mon-fri 17:00-close" --dry-run --format pretty
 
 # or get told when something earlier opens up
@@ -55,16 +55,18 @@ Output is JSON by default (pipe it into `jq`); `--format pretty` is for people.
 
 ## Documentation
 
+Full docs: **https://booksy.gimeno.dev**
+
 | guide | |
 |---|---|
-| [Install and update](docs/install.md) | installer, Windows, `booksy update`, uninstall, releasing |
-| [Log in](docs/auth.md) | importing your booksy.com login, profiles, CI |
-| [Find businesses and slots](docs/finding-slots.md) | search, services and variants, `--when` schedules, `earliest` |
-| [Book, reschedule and cancel](docs/booking.md) | the booking flow, prepayments and no-show protection |
-| [Watch for cancellations](docs/watches.md) | watches, the timer, ntfy/webhook/script notifications |
-| [Configuration](docs/configuration.md) | config keys, files, environment variables, countries |
-| [Scripts and AI agents](docs/agents.md) | JSON contract, error envelope, the built-in agent guide |
-| [Troubleshooting](docs/troubleshooting.md) | exit codes and common problems |
+| [Install and update](https://booksy.gimeno.dev/docs/install/) | installer, Windows, `booksy update`, uninstall, releasing |
+| [Log in](https://booksy.gimeno.dev/docs/auth/) | importing your booksy.com login, profiles, CI |
+| [Find businesses and slots](https://booksy.gimeno.dev/docs/finding-slots/) | search, services and variants, `--when` schedules, `earliest` |
+| [Book, reschedule and cancel](https://booksy.gimeno.dev/docs/booking/) | the booking flow, prepayments and no-show protection |
+| [Watch for cancellations](https://booksy.gimeno.dev/docs/watches/) | watches, the timer, ntfy/webhook/script notifications |
+| [Configuration](https://booksy.gimeno.dev/docs/configuration/) | config keys, files, environment variables, countries |
+| [Scripts and AI agents](https://booksy.gimeno.dev/docs/agents/) | JSON contract, error envelope, the built-in agent guide |
+| [Troubleshooting](https://booksy.gimeno.dev/docs/troubleshooting/) | exit codes and common problems |
 | [Specification](docs/cli-spec.md) | every command, flag, file and Booksy endpoint |
 
 ## Good to know

@@ -1,4 +1,7 @@
-# Find businesses and open slots
+---
+title: Find businesses and open slots
+description: Search businesses, pick a service, filter slots with your schedule, and find the earliest slot across businesses.
+---
 
 None of this needs a login.
 
@@ -84,4 +87,4 @@ booksy earliest --treatment 71 --geo 39.47,-0.37 --days 21 --limit 5 --per-busin
 
 With text, it says on stderr which treatment it picked and lists alternatives; `--treatment ID` pins one. It checks the nearest `--businesses` (default 15) that offer it, a few at a time, and lists the earliest slots across all of them. Each row has `business_id`, `variant_id` and `start`, which are exactly what `booksy book` takes.
 
-`earliest` does not check fees; run `book --dry-run` on the one you pick (see [booking](booking.md)).
+`earliest` does not check fees; run `book --dry-run` on the one you pick (see [booking](/docs/booking)).

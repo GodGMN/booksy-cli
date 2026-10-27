@@ -1,0 +1,7 @@
+node_modules/
+.next/
+out/
+.source/
+public/install.sh
+next-env.d.ts
+*.tsbuildinfo

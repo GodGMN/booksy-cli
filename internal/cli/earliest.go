@@ -111,9 +111,9 @@ ids to pass to ` + "`booksy book`" + `.
 
 Cancellation fees and prepayments only show at booking time: run
 ` + "`booksy book ... --dry-run`" + ` on the pick before booking.`,
-		Example: `  booksy earliest barba --near Xàtiva --when "mon-fri 16:00-close" --when sat
-  booksy earliest --treatment 71 --geo 38.99,-0.52 --days 21 --limit 5 --format pretty
-  booksy earliest "corte caballero" --near Valencia --when "weekdays 18:00-" --per-business 3`,
+		Example: `  booksy earliest barba --near Valencia --when "mon-fri 16:00-close" --when sat
+  booksy earliest --treatment 71 --geo 39.47,-0.38 --days 21 --limit 5 --format pretty
+  booksy earliest "corte caballero" --near Madrid --when "weekdays 18:00-" --per-business 3`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if sf.service != "" || sf.staff != "" {

@@ -1,0 +1,50 @@
+---
+title: booksy-cli
+description: Find, watch and book Booksy appointments from the terminal. JSON by default.
+---
+
+Booksy has no public API: booking happens on booksy.com or in its app. `booksy` is one Go binary that talks to the same web API booksy.com uses, with your own account, and turns it into noun-verb commands that print JSON.
+
+```bash
+booksy earliest barba --near Valencia --when "mon-fri 16:00-close" --when sat --format pretty
+```
+
+```
+DAY         TIME   BUSINESS                        DIST  SERVICE                    PRICE     BUSINESS_ID  VARIANT
+Tue 27 Oct  16:00  Barbería Vanellie Capelli       415m  Arreglo de barba Sencillo  12,00 €+  64989        1121918
+Tue 27 Oct  16:00  Barbershop Barberia Fabián Fe…  425m  Recorte de la barba        10,00 €+  168103       2360732
+...
+Recorte de la barba · 15 businesses checked, 2026-10-27 to 2026-11-09 · book with: booksy book BUSINESS_ID --service VARIANT --at DATETIME
+```
+
+```bash
+curl -fsSL https://booksy.gimeno.dev/install.sh | sh
+```
+
+- **Search** businesses around any place, and read their services, staff, hours and reviews.
+- **Open slots** for a service, filtered by your real schedule: `--when "mon-fri 16:00-close" --when sat`.
+- **The earliest slot anywhere:** the same kind of service compared across nearby businesses.
+- **Watch for cancellations** and get a phone notification when an earlier slot opens.
+- **Book, reschedule and cancel** from your own account, always with a summary and a confirmation first.
+- **Made for scripts and AI agents:** stable exit codes, machine-readable errors, `--dry-run`, and a usage guide built into the binary.
+
+No login is needed to search, check slots or watch.
+
+<Cards>
+  <Card title="Install" href="/docs/install">
+    One line on Linux and macOS, a zip on Windows, then `booksy update`.
+  </Card>
+  <Card title="Find slots" href="/docs/finding-slots">
+    Your schedule as a filter, and the earliest slot across businesses.
+  </Card>
+  <Card title="Watch for cancellations" href="/docs/watches">
+    A timer, a filter, and a notification on your phone.
+  </Card>
+  <Card title="Command reference" href="/docs/reference">
+    Every command and flag, generated from the binary.
+  </Card>
+</Cards>
+
+<Callout title="Unofficial">
+  booksy-cli is not made by or affiliated with Booksy. It uses the API booksy.com itself uses, which can change without notice; when it does, commands exit 7 and point at an issue to open.
+</Callout>

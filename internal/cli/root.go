@@ -97,6 +97,12 @@ func Execute(version string, args []string, stdin io.Reader, stdout, stderr io.W
 	return output.PrintError(stderr, err, ef, version, path)
 }
 
+// CommandTree is the full command tree, for tools such as cmd/docsgen that
+// read commands and flags without running them.
+func CommandTree(version string) *cobra.Command {
+	return (&App{Version: version}).rootCmd()
+}
+
 func (a *App) rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "booksy",
@@ -105,7 +111,7 @@ func (a *App) rootCmd() *cobra.Command {
 and book or cancel appointments on Booksy, from the terminal.
 
 Output is JSON by default so every command pipes into jq. Use --format pretty
-for humans. Errors go to stderr; exit codes are listed in docs/cli-spec.md.
+for humans. Errors go to stderr; exit codes are listed in the docs.
 
 Examples:
   booksy search barberia --near Valencia --format pretty

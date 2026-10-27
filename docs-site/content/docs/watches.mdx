@@ -1,4 +1,7 @@
-# Watch for cancellations
+---
+title: Watch for cancellations
+description: Get notified when an earlier slot opens. Watches, the timer, ntfy, webhooks and scripts.
+---
 
 A watch remembers which slots were open for one service and tells you when new ones open, which in practice means someone cancelled. Watches live on your machine; Booksy does not know about them. No login needed.
 
@@ -10,7 +13,7 @@ booksy watch add slots 3349 --service 273164 \
   --before 2026-11-20 --notify phone --name barber
 ```
 
-It takes the same filters as [`slots`](finding-slots.md) (`--days` defaults to 14), plus:
+It takes the same filters as [`slots`](/docs/finding-slots) (`--days` defaults to 14), plus:
 
 | flag | meaning |
 |---|---|

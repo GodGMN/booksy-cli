@@ -1,10 +1,13 @@
-# Scripts and AI agents
+---
+title: Scripts and AI agents
+description: The JSON contract, the error envelope and the built-in agent guide.
+---
 
 The CLI is built to be driven by programs:
 
 - stdout is JSON (`--format jsonl` for one object per line, `toon` for compact LLM input); stderr has notices and errors
 - `--error-format json` makes errors a JSON envelope: `code`, `category`, `reason`, `retryable`, `message`, `suggested_commands`
-- exit codes are stable (see [troubleshooting](troubleshooting.md))
+- exit codes are stable (see [troubleshooting](/docs/troubleshooting))
 - `--no-input` never prompts; anything that changes an account then requires `--yes`
 - `--dry-run` on `book` and `reschedule` shows exactly what would happen
 
@@ -14,7 +17,7 @@ The guide written for agents ships inside the binary, so it always matches the i
 booksy skills get booksy-usage
 ```
 
-Its source is [internal/cli/skills/booksy-usage.md](../internal/cli/skills/booksy-usage.md). Point your agent at it, for example in a system prompt: "Before using booksy, run `booksy skills get booksy-usage` and follow it."
+Its source is [internal/cli/skills/booksy-usage.md](https://github.com/GodGMN/booksy-cli/blob/main/internal/cli/skills/booksy-usage.md). Point your agent at it, for example in a system prompt: "Before using booksy, run `booksy skills get booksy-usage` and follow it."
 
 Rules worth repeating:
 

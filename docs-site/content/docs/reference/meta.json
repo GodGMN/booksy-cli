@@ -1,0 +1,27 @@
+{
+  "title": "Command reference",
+  "description": "Every command, generated from the binary",
+  "pages": [
+    "index",
+    "global-flags",
+    "appointment",
+    "auth",
+    "book",
+    "bookmark",
+    "business",
+    "category",
+    "config",
+    "doctor",
+    "earliest",
+    "me",
+    "place",
+    "profile",
+    "search",
+    "sink",
+    "skills",
+    "slots",
+    "treatment",
+    "update",
+    "watch"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "title": "booksy-cli",
+  "pages": [
+    "index",
+    "---Getting started---",
+    "install",
+    "auth",
+    "---Using it---",
+    "finding-slots",
+    "booking",
+    "watches",
+    "configuration",
+    "agents",
+    "---Reference---",
+    "reference",
+    "troubleshooting",
+    "[Specification](https://github.com/GodGMN/booksy-cli/blob/main/docs/cli-spec.md)"
+  ]
+}

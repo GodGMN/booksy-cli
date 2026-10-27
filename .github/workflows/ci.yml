@@ -18,3 +18,23 @@ jobs:
       - run: test -z "$(gofmt -l .)"
       - run: go test -race ./...
       - run: go build ./cmd/booksy
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: make docs-check
+      - run: npm ci
+        working-directory: docs-site
+      - run: npm run typecheck
+        working-directory: docs-site
+      - run: npm run build
+        working-directory: docs-site
+      - run: cmp scripts/install.sh docs-site/out/install.sh && test -s docs-site/out/api/search
