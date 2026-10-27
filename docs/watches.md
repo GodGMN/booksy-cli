@@ -75,7 +75,7 @@ booksy sink test phone
 
 Webhook URLs and ntfy topics work like passwords: `config.toml` is saved with mode 0600, and `sink list` hides them.
 
-If a delivery fails, the check is not saved and exits non-zero, so the next check reports the same slots again rather than losing them.
+If a delivery fails, or the watch names a sink that is no longer in config.toml, the check is not saved and exits non-zero, so the next check reports the same slots again rather than losing them. With `--emit-initial`, a failed first delivery means the watch is not added; fix the sink and run `watch add` again.
 
 ## Book from an event
 

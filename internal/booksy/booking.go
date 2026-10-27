@@ -235,8 +235,13 @@ func (p Payment) NeedsPrepayment() bool { return positive(p.Prepayment) }
 func (p Payment) HasCancellationFee() bool { return positive(p.CancellationFee) }
 
 func positive(s string) bool {
-	f, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", "."), 64)
-	return err == nil && f > 0
+	f, ok := amount(s)
+	return ok && f > 0
+}
+
+func amount(s string) (float64, bool) {
+	f, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(s), ",", "."), 64)
+	return f, err == nil
 }
 
 // PaymentCalc prices the draft, as booksy.com's review screen does before
@@ -261,6 +266,13 @@ func (c *Client) PaymentCalc(ctx context.Context, d Draft) (Payment, error) {
 		return Payment{}, &Error{Kind: KindAPIChanged, Endpoint: "POST /me/payments/calc/", Msg: "payment calculation has no appointment_payment"}
 	}
 	p := raw.AppointmentPayment
+	// The card check below depends on these two, so an amount that is
+	// missing or not a number stops the booking instead of reading as zero.
+	for field, v := range map[string]string{"prepayment_total": p.PrepaymentTotal, "cancellation_fee_total": p.CancellationFeeTotal} {
+		if _, ok := amount(v); !ok {
+			return Payment{}, &Error{Kind: KindAPIChanged, Endpoint: "POST /me/payments/calc/", Msg: fmt.Sprintf("payment calculation has no readable %s, so the CLI cannot tell whether this booking needs a card", field)}
+		}
+	}
 	return Payment{Prepayment: p.PrepaymentTotal, CancellationFee: p.CancellationFeeTotal, ToPayLater: p.ToPayLater}, nil
 }
 

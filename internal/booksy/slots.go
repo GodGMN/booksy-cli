@@ -49,6 +49,11 @@ func (c *Client) Slots(ctx context.Context, q SlotsQuery) ([]Slot, error) {
 	if err := c.call(ctx, "POST", path, nil, body, &resp); err != nil {
 		return nil, err
 	}
+	// An empty calendar is "time_slots": []. Anything else would read as
+	// every slot gone, and a watch would forget what it had seen.
+	if resp.TimeSlots == nil {
+		return nil, &Error{Kind: KindAPIChanged, Endpoint: "POST /me/businesses/{id}/appointments/time_slots", Msg: "time slots response has no time_slots list"}
+	}
 	out := []Slot{}
 	for _, d := range resp.TimeSlots {
 		for _, s := range d.Slots {

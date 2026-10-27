@@ -34,6 +34,9 @@ type Server struct {
 	Slots map[string][]string // date -> times
 	// OtherSlots is the second business's calendar in treatment searches.
 	OtherSlots map[string][]string
+	// SlotsBody, when set, is served verbatim instead of Slots, to simulate
+	// an unexpected time_slots response.
+	SlotsBody string
 	// Key is the web api key the fake accepts and serves from its fake
 	// booksy.com scripts. Change it to simulate Booksy rotating the key.
 	Key     string
@@ -185,7 +188,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			{"object_type": "business", "label": "Some shop", "query_parameters": map[string]any{"id": 5}},
 			{"object_type": "treatment", "label": "Corte fade", "query_parameters": map[string]any{"id": 398}}}})
 	case r.Method == "POST" && path == fmt.Sprintf("/me/businesses/%d/appointments/time_slots", OtherBusinessID):
-		var days []map[string]any
+		days := []map[string]any{}
 		for _, d := range sortedKeys(s.OtherSlots) {
 			var ss []map[string]string
 			for _, t := range s.OtherSlots[d] {
@@ -207,7 +210,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		write(w, 200, map[string]any{"match": map[string]any{"latitude": 39.46894, "longitude": -0.37686, "formatted_address": "València, Comunitat Valenciana"}, "location": map[string]any{"id": 58087}})
 	case r.Method == "POST" && path == fmt.Sprintf("/me/businesses/%d/appointments/time_slots", BusinessID):
-		var days []map[string]any
+		if s.SlotsBody != "" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, s.SlotsBody)
+			return
+		}
+		days := []map[string]any{}
 		for _, d := range sortedKeys(s.Slots) {
 			var ss []map[string]string
 			for _, t := range s.Slots[d] {

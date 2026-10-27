@@ -474,3 +474,75 @@ func TestSlotsWhenSchedule(t *testing.T) {
 		t.Fatalf("%s", out)
 	}
 }
+
+func TestUnreadablePaymentStopsBooking(t *testing.T) {
+	h := newHarness(t)
+	day := today(1)
+	h.srv.Slots[day] = []string{"18:00"}
+	h.login()
+	for _, fee := range []string{"", "unknown"} {
+		h.srv.CancellationFee = fee
+		if r := h.run("", "book", "3349", "--service", "273164", "--at", day+"T18:00", "--yes"); r.code != 7 || h.srv.Scheduled != 0 {
+			t.Fatalf("fee %q: exit %d, scheduled %d: %s", fee, r.code, h.srv.Scheduled, r.stderr)
+		}
+	}
+}
+
+func TestFailedInitialDeliveryDropsTheWatch(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Slots[today(1)] = []string{"10:00"}
+	h.ok("config", "set", "sinks.s.type", "exec")
+	h.ok("config", "set", "sinks.s.command", "/bin/false")
+	r := h.run("", "watch", "add", "slots", "3349", "--service", "273164", "--notify", "s", "--name", "w", "--emit-initial")
+	if r.code == 0 || !strings.Contains(r.stderr, "not added") {
+		t.Fatalf("a failed initial delivery must fail the add: %d %s", r.code, r.stderr)
+	}
+	if ws := decode[[]any](t, h.ok("watch", "list")); len(ws) != 0 {
+		t.Fatalf("the watch should not be kept: %v", ws)
+	}
+}
+
+func TestMissingSinkIsAFailedDelivery(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Slots[today(1)] = []string{"10:00"}
+	h.ok("config", "set", "sinks.s.type", "exec")
+	h.ok("config", "set", "sinks.s.command", "/bin/true")
+	h.ok("watch", "add", "slots", "3349", "--service", "273164", "--notify", "s", "--name", "w")
+	h.ok("config", "unset", "sinks.s")
+	h.srv.Slots[today(1)] = []string{"10:00", "18:00"}
+	if r := h.run("", "watch", "check", "w"); r.code == 0 || !strings.Contains(r.stderr, "no longer in config.toml") {
+		t.Fatalf("a missing sink must fail the check: %d %s", r.code, r.stderr)
+	}
+}
+
+func TestOddSlotsResponseKeepsWatchState(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Slots[today(1)] = []string{"10:00"}
+	h.ok("watch", "add", "slots", "3349", "--service", "273164", "--name", "w")
+	for _, body := range []string{`{}`, `{"time_slots": null}`} {
+		h.srv.SlotsBody = body
+		if r := h.run("", "watch", "check", "w"); r.code != 7 {
+			t.Fatalf("%s: exit %d %s", body, r.code, r.stderr)
+		}
+	}
+	h.srv.SlotsBody = ""
+	if evs := decode[[]any](t, h.ok("watch", "check", "w")); len(evs) != 0 {
+		t.Fatalf("the open slot is not news: %v", evs)
+	}
+	h.srv.Slots = map[string][]string{}
+	if res := decode[SlotsResult](t, h.ok("slots", "3349", "--service", "273164")); len(res.Slots) != 0 {
+		t.Fatalf("an empty calendar is fine: %+v", res)
+	}
+}
+
+func TestLoginUsesTheConfiguredKey(t *testing.T) {
+	h := newHarness(t)
+	h.srv.Key = "web-11111111-2222-3333-4444-555555555555"
+	h.ok("config", "set", "api_key", h.srv.Key)
+	h.login()
+	// And with only rediscovery to go on.
+	h2 := newHarness(t)
+	t.Setenv("BOOKSY_WEB_BASE", h2.srv.URL)
+	h2.srv.Key = "web-11111111-2222-3333-4444-555555555555"
+	h2.login()
+}

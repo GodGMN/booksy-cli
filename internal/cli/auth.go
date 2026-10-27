@@ -131,9 +131,10 @@ checked against Booksy before it is saved to credentials.toml (mode 0600).`,
 				fp = newUUID()
 			}
 			a.Country = id.Country
-			c := booksy.New(id.Country)
-			c.HTTP, c.BaseURL, c.Debug, c.Language = a.Client.HTTP, a.Client.BaseURL, a.Client.Debug, a.Client.Language
-			c.AccessToken, c.Fingerprint = id.Token, fp
+			// A copy keeps the transport, proxy, web api key and its
+			// rediscovery; only the country and session are the cookies'.
+			c := *a.Client
+			c.Country, c.AccessToken, c.Fingerprint = id.Country, id.Token, fp
 			me, err := c.Me(cmd.Context())
 			if err != nil {
 				if e, ok := err.(*booksy.Error); ok && e.Kind == booksy.KindAuth {

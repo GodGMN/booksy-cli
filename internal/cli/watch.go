@@ -174,8 +174,11 @@ func (a *App) watchAddSlotsCmd() *cobra.Command {
 				_ = st.RemoveWatch(ctx, w.Name)
 				return err
 			}
+			// A failed first delivery cannot be retried later: the next check
+			// is not an initial one. Drop the watch so the add can be rerun.
 			if err := a.deliver(ctx, w, res.Events); err != nil {
-				a.notice("%v", err)
+				_ = st.RemoveWatch(ctx, w.Name)
+				return fmt.Errorf("%w; the watch was not added, fix the sink and run this again", err)
 			}
 			if err := st.CommitCheck(ctx, w.ID, res.Present, res.Removed, res.Events); err != nil {
 				return err
@@ -350,6 +353,7 @@ func (a *App) deliver(ctx context.Context, w store.Watch, events []store.Event) 
 			cfg, ok := a.Cfg.Sinks[name]
 			if !ok {
 				a.notice("watch %s: sink %s is no longer in config.toml", w.Name, name)
+				failed++
 				continue
 			}
 			if err := sink.Deliver(ctx, name, cfg, ev); err != nil {
