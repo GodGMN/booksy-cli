@@ -6,12 +6,14 @@ description: One-line installer, Windows, go install, booksy update and uninstal
 ## Linux and macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh | sh
+curl -fsSL https://booksy.gimeno.dev/install.sh | sh
 booksy --version
 booksy doctor
 ```
 
 The script picks the release archive for your OS and CPU (amd64 or arm64), checks it against the release's `checksums.txt`, and installs `booksy` into `~/.local/bin`. If that directory is not on your `PATH`, it tells you the line to add.
+
+The URL serves [`scripts/install.sh`](https://github.com/GodGMN/booksy-cli/blob/main/scripts/install.sh) from the repository. If the site is down, the same script is at `https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh`.
 
 | variable | effect |
 |---|---|

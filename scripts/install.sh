@@ -1,10 +1,10 @@
 #!/bin/sh
 # Installs the latest booksy release into ~/.local/bin (or $BOOKSY_INSTALL_DIR).
 #
-#   curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh | sh
+#   curl -fsSL https://booksy.gimeno.dev/install.sh | sh
 #
-# BOOKSY_VERSION=v0.2.0 pins a version. While the repository is private, the
-# script downloads through a logged-in gh CLI (`gh auth login`) instead of curl.
+# BOOKSY_VERSION=v0.2.0 pins a version. With a logged-in gh CLI the script
+# downloads through it instead of curl, which also works for a private fork.
 set -eu
 repo="GodGMN/booksy-cli"
 dir="${BOOKSY_INSTALL_DIR:-$HOME/.local/bin}"

@@ -27,7 +27,7 @@ One static binary for Linux, macOS and Windows. No login is needed to search, ch
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GodGMN/booksy-cli/main/scripts/install.sh | sh
+curl -fsSL https://booksy.gimeno.dev/install.sh | sh
 booksy doctor
 ```
 
@@ -80,7 +80,7 @@ Full docs: **https://booksy.gimeno.dev**
 
 ## Contributing
 
-`make check` runs vet, staticcheck and the tests, which use a fake Booksy server, never the real one. [AGENTS.md](AGENTS.md) has the project rules and [CONTEXT.md](CONTEXT.md) the vocabulary.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the code layout, tests, and pull requests. [AGENTS.md](AGENTS.md) has the project rules and [CONTEXT.md](CONTEXT.md) the vocabulary.
 
 ## License
 
