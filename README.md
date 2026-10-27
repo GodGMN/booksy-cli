@@ -78,6 +78,13 @@ Full docs: **https://booksy.gimeno.dev**
 - **Not a secret.** The `X-Api-Key` in the code is booksy.com's public web-client key that every browser receives. If Booksy changes it, the CLI picks up the new one from booksy.com by itself.
 - **Be gentle.** Watches check every 15 minutes by default (2 minutes at the fastest), and `earliest` queries a few businesses at a time.
 
+## Not supported yet
+
+Both stop before changing anything and say why (exit 2, reason `card_required`).
+
+- **Prepayments.** Businesses that want money up front have to be booked on booksy.com or in the app.
+- **Rescheduling a booking with a cancellation fee.** `appointment reschedule` refuses for businesses with no-show protection. Cancel and book again instead, or move it on booksy.com.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the code layout, tests, and pull requests. [AGENTS.md](AGENTS.md) has the project rules and [CONTEXT.md](CONTEXT.md) the vocabulary.
