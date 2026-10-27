@@ -16,13 +16,11 @@ import (
 
 // BookingResult is the JSON contract of `book` and `appointment reschedule`.
 type BookingResult struct {
-	Booked  bool                `json:"booked"`
-	DryRun  bool                `json:"dry_run"`
-	Draft   booksy.Draft        `json:"draft"`
-	Summary booksy.Confirmation `json:"summary"`
-	Payment *booksy.Payment     `json:"payment,omitempty"`
-	// Card is the saved card that guarantees a cancellation fee.
-	Card        *booksy.Card        `json:"card,omitempty"`
+	Booked      bool                `json:"booked"`
+	DryRun      bool                `json:"dry_run"`
+	Draft       booksy.Draft        `json:"draft"`
+	Summary     booksy.Confirmation `json:"summary"`
+	Payment     *booksy.Payment     `json:"payment,omitempty"`
 	Appointment *booksy.Appointment `json:"appointment,omitempty"`
 }
 
@@ -34,7 +32,7 @@ func (r BookingResult) Pretty(w io.Writer, color bool) {
 		fmt.Fprintln(w, bold("Dry run: nothing was booked.", color))
 	}
 	summaryPretty(w, r.Summary, color)
-	paymentPretty(w, r.Payment, r.Card)
+	paymentPretty(w, r.Payment)
 	if r.Appointment != nil {
 		fmt.Fprintf(w, "appointment %d · %s\n", r.Appointment.UID, r.Appointment.Status)
 	}
@@ -54,7 +52,7 @@ func summaryPretty(w io.Writer, s booksy.Confirmation, color bool) {
 	}
 }
 
-func paymentPretty(w io.Writer, p *booksy.Payment, card *booksy.Card) {
+func paymentPretty(w io.Writer, p *booksy.Payment) {
 	if p == nil {
 		return
 	}
@@ -66,9 +64,6 @@ func paymentPretty(w io.Writer, p *booksy.Payment, card *booksy.Card) {
 	}
 	if p.HasCancellationFee() {
 		fmt.Fprintf(w, "cancellation fee: %s if you cancel late or do not show up\n", p.CancellationFee)
-		if card != nil {
-			fmt.Fprintf(w, "guaranteed with your saved %s; nothing is charged now\n", card)
-		}
 	}
 }
 
@@ -103,15 +98,6 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 			return err
 		}
 		res.Payment = &pay
-		if pay.HasCancellationFee() && !pay.NeedsPrepayment() {
-			cards, err := a.Client.Cards(ctx, d.BusinessID)
-			if err != nil {
-				return err
-			}
-			if c, ok := booksy.PickCard(cards); ok {
-				res.Card = &c
-			}
-		}
 		if !dryRun {
 			if pay.NeedsPrepayment() {
 				e := booksy.Usage("%s asks for a %s prepayment by card, which only booksy.com can take. Book this one on booksy.com or in the app", d.Business, pay.Prepayment)
@@ -119,12 +105,11 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 				return e
 			}
 			// No-show protection: the service is still paid in person, but
-			// Booksy holds the booking as awaiting payment until a card
-			// guarantees it, and cancels it if none comes. A saved card is
-			// attached after schedule; adding one is Stripe's form on
-			// booksy.com, so with none, stop before booking.
-			if pay.HasCancellationFee() && res.Card == nil {
-				e := booksy.Usage("%s uses no-show protection: you pay %s at the business, but booksy needs a card to guarantee a %s fee for late cancellations, and this account has none saved. Add one on booksy.com or in the app (Profile, Payment methods) and book again", d.Business, pay.ToPayLater, pay.CancellationFee)
+			// Booksy holds the booking as awaiting payment until a card is
+			// registered as a guarantee, and cancels it if none comes. Card
+			// entry is Stripe's form on booksy.com, so stop before booking.
+			if pay.HasCancellationFee() {
+				e := booksy.Usage("%s uses no-show protection: you pay %s at the business, but booksy needs a card on file to guarantee a %s fee for late cancellations, and only booksy.com or the app can take it. Book this one there; a booking made here would stay unconfirmed and be cancelled", d.Business, pay.ToPayLater, pay.CancellationFee)
 				e.Reason = "card_required"
 				return e
 			}
@@ -135,7 +120,7 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 	}
 	if a.Interactive && !yes {
 		summaryPretty(a.Stderr, sum, false)
-		paymentPretty(a.Stderr, res.Payment, res.Card)
+		paymentPretty(a.Stderr, res.Payment)
 	}
 	if err := a.confirm(yes, verb+"?"); err != nil {
 		return err
@@ -145,15 +130,6 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 		return err
 	}
 	res.Booked, res.Draft = true, done
-	if res.Card != nil && done.CoreID != 0 {
-		a.notice("booked; waiting for booksy to confirm it with your %s", res.Card)
-		ap, err := a.awaitGuarantee(ctx, done.CoreID, *res.Card)
-		if err != nil {
-			return err
-		}
-		res.Appointment = &ap
-		return a.Printer.Print(res)
-	}
 	if done.CoreID != 0 {
 		if ap, err := a.Client.Appointment(ctx, done.CoreID); err == nil {
 			res.Appointment = &ap
@@ -165,49 +141,6 @@ func (a *App) finishBooking(ctx context.Context, d booksy.Draft, date, clock, no
 		}
 	}
 	return a.Printer.Print(res)
-}
-
-// awaitGuarantee waits for Booksy to bind the saved card to a just-booked
-// appointment's cancellation fee, which moves it from awaiting payment to
-// confirmed a few seconds after schedule. If that does not happen, the
-// booking is cancelled again rather than left holding the slot until Booksy
-// cancels it anyway.
-func (a *App) awaitGuarantee(ctx context.Context, uid int64, card booksy.Card) (booksy.Appointment, error) {
-	deadline := time.Now().Add(booksy.ConfirmPoll.For)
-	for {
-		ap, err := a.Client.Appointment(ctx, uid)
-		if err != nil {
-			return ap, err
-		}
-		if ap.Status != "awaiting_payment" {
-			return ap, nil
-		}
-		if time.Now().After(deadline) {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			a.notice("interrupted while booksy was confirming; check appointment %d with `booksy appointment show %d`", uid, uid)
-			return ap, ctx.Err()
-		case <-time.After(booksy.ConfirmPoll.Every):
-		}
-	}
-	e := booksy.Usage("booksy did not guarantee the cancellation fee with your %s within %s, so the booking stayed unconfirmed", card, booksy.ConfirmPoll.For)
-	e.Reason = "card_not_accepted"
-	ap, err := a.Client.Appointment(ctx, uid)
-	switch {
-	case err != nil:
-		a.notice("checking appointment %d failed (%v). Check it with `booksy appointment show %d`", uid, err, uid)
-	case ap.Status != "awaiting_payment":
-		return ap, nil
-	default:
-		if _, cerr := a.Client.CancelAppointment(ctx, ap.UID, ap.Version); cerr != nil {
-			a.notice("cancelling the unconfirmed appointment %d failed (%v). Cancel it with `booksy appointment cancel %d`", uid, cerr, uid)
-		} else {
-			a.notice("appointment %d was cancelled again; check the card in the booksy app (Profile, Payment methods)", uid)
-		}
-	}
-	return ap, e
 }
 
 func (a *App) bookCmd() *cobra.Command {

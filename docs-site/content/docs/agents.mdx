@@ -22,7 +22,7 @@ Its source is [internal/cli/skills/booksy-usage.md](https://github.com/GodGMN/bo
 Rules worth repeating:
 
 1. Run `book --dry-run` and show the user the summary before booking; pass `--yes` only when the user asked for that exact booking.
-2. `reason: "card_required"` means a prepayment, or no-show protection with no saved card. Nothing was booked; send the user to booksy.com or the app instead of retrying. With a saved card, no-show protection books normally; `card_not_accepted` means Booksy did not confirm it and the CLI cancelled it again.
+2. `reason: "card_required"` means the business needs a card (prepayment or no-show protection). Nothing was booked; send the user to booksy.com or the app instead of retrying.
 3. `reason: "slot_unavailable"`: re-run `slots` and offer real times; never guess.
 4. Use `--when` for the user's availability rather than several queries merged by hand.
 5. Never ask a user to paste their cookie into a chat; ask for a file path for `auth login --cookies`.

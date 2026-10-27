@@ -32,18 +32,14 @@ A time that is not open fails without booking (exit 2, reason `slot_unavailable`
 
 Some businesses ask for money up front (a prepayment), and some turn on Booksy's **no-show protection**: you still pay at the business, but Booksy wants a card on file to charge a fee if you cancel late or do not show up. Businesses can switch it on at any time.
 
-Both need a card. Adding one only works through Stripe's form on booksy.com or in the app (Profile, Payment methods); the CLI never sees card details.
-
-**No-show protection with a saved card** works from the CLI. `--dry-run` and the confirmation name the card:
+Both need a card, and card entry only exists as Stripe's form on booksy.com and in the app. The CLI never handles cards. So when Booksy reports a prepayment or a cancellation fee, `book` stops before booking and says why (exit 2, reason `card_required`):
 
 ```
-cancellation fee: 11.00 if you cancel late or do not show up
-guaranteed with your saved mastercard •••• 1234; nothing is charged now
+booksy: La Barberia Test uses no-show protection: you pay 11.00 at the business, but booksy needs a card
+on file to guarantee a 11.00 fee for late cancellations, and only booksy.com or the app can take it.
 ```
 
-After booking, Booksy binds the card to the fee by itself and moves the appointment from awaiting payment to confirmed, usually within seconds; `book` waits up to a minute for that. If it does not happen, `book` cancels the booking again rather than leave it unconfirmed, and fails with exit 2, reason `card_not_accepted`.
-
-**Without a saved card**, or **with a prepayment** (money charged up front, which the CLI does not pay), `book` stops before booking and says why (exit 2, reason `card_required`). Add a card, or book that one on booksy.com or in the app. `--dry-run` shows the amounts, so you can see it coming.
+Book that one on booksy.com or in the app. `--dry-run` still shows the amounts, so you can see it coming.
 
 ## Your appointments
 
