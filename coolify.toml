@@ -1,0 +1,7 @@
+project = "Booksy-cli"
+domain = "booksy.gimeno.dev"
+
+[apps."Booksy Wiki"]
+dockerfile = "docs-site/Dockerfile"
+port = 80
+watch = [".dockerignore", "docs-site/**", "scripts/install.sh"]
